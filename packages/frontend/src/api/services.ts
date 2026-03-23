@@ -22,12 +22,18 @@ export interface Service {
   description: string | null
   ai_description: string | null
   custom_description: string | null
+  preferred_port?: number | null
   pages: ServicePage[]
   is_hidden?: number
 }
 
 export async function getServices(): Promise<Service[]> {
   const { data } = await apiClient.get<Service[]>('/services')
+  return data
+}
+
+export async function getServicesForSettings(): Promise<Service[]> {
+  const { data } = await apiClient.get<Service[]>('/services/settings')
   return data
 }
 
@@ -38,7 +44,7 @@ export async function getAllServices(): Promise<Service[]> {
 
 export async function updateServicePrefs(
   id: number,
-  prefs: { is_hidden: 0 | 1 }
+  prefs: { is_hidden?: 0 | 1; preferred_port?: number | null }
 ): Promise<void> {
   await apiClient.patch(`/services/${id}/prefs`, prefs)
 }

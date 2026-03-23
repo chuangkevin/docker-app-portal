@@ -9,11 +9,12 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
   const description =
     service.custom_description || service.ai_description || '暫無描述'
   const firstPublicPort = service.ports.find((p) => p.public)?.public
+  const openPort = service.preferred_port ?? firstPublicPort
 
   const handleOpen = () => {
-    if (firstPublicPort) {
+    if (openPort) {
       window.open(
-        `http://${window.location.hostname}:${firstPublicPort}`,
+        `http://${window.location.hostname}:${openPort}`,
         '_blank'
       )
     }
@@ -59,7 +60,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
       <button
         type="button"
         onClick={handleOpen}
-        disabled={!firstPublicPort || service.status === 'offline'}
+        disabled={!openPort || service.status === 'offline'}
         className="mt-auto w-full py-2 rounded-lg text-sm font-medium transition disabled:opacity-40 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-500 text-white"
       >
         開啟
