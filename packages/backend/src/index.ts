@@ -9,6 +9,11 @@ import adminOnlyPlugin from './plugins/adminOnly';
 import healthRoute from './routes/health';
 import usersRoute from './routes/users';
 import authRoute from './routes/auth';
+import servicesRoute from './routes/services';
+import pagesRoute from './routes/pages';
+import adminRoute from './routes/admin';
+import { DockerService } from './services/docker';
+import { GeminiService } from './services/gemini';
 import path from 'path';
 import fs from 'fs';
 
@@ -44,12 +49,20 @@ async function buildServer() {
   await fastify.register(healthRoute);
   await fastify.register(usersRoute, { db });
   await fastify.register(authRoute, { db });
+  await fastify.register(servicesRoute, { db });
+  await fastify.register(pagesRoute, { db });
+  await fastify.register(adminRoute, { db });
 
-  return fastify;
+  return { fastify, db };
 }
 
 async function start() {
-  const fastify = await buildServer();
+  const { fastify, db } = await buildServer();
+
+  // Start Docker scan scheduler
+  const geminiService = new GeminiService(db);
+  const dockerService = new DockerService(db, geminiService);
+  dockerService.startScheduler();
 
   try {
     await fastify.listen({ port: PORT, host: HOST });
