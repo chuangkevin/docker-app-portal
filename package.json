@@ -1,0 +1,11 @@
+{
+  "name": "docker-app-portal",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev:backend": "npm --workspace packages/backend run dev",
+    "dev:frontend": "npm --workspace packages/frontend run dev",
+    "build": "npm --workspace packages/frontend run build && npm --workspace packages/backend run build",
+    "test:backend": "npm --workspace packages/backend run test"
+  }
+}
