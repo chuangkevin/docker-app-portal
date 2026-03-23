@@ -93,10 +93,10 @@ const pagesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) 
     },
   );
 
-  // POST /api/pages - create a new page
+  // POST /api/pages - create a new page (any authenticated user)
   fastify.post(
     '/api/pages',
-    { preHandler: [fastify.authenticate, fastify.adminOnly] },
+    { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       let body: z.infer<typeof createPageSchema>;
       try {
@@ -130,10 +130,10 @@ const pagesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) 
     },
   );
 
-  // PATCH /api/pages/:id - update a page
+  // PATCH /api/pages/:id - update a page (owner or admin)
   fastify.patch<{ Params: { id: string } }>(
     '/api/pages/:id',
-    { preHandler: [fastify.authenticate, fastify.adminOnly] },
+    { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const pageId = parseInt(request.params.id, 10);
       if (isNaN(pageId)) {
@@ -155,6 +155,11 @@ const pagesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) 
 
       if (!existing.length) {
         return reply.status(404).send({ error: 'Not Found', message: 'Page not found' });
+      }
+
+      // Only owner or admin can update
+      if (existing[0].created_by !== request.user.userId && request.user.role !== 'admin') {
+        return reply.status(403).send({ error: 'Forbidden', message: 'You can only edit your own pages' });
       }
 
       const updateData: Record<string, unknown> = {};
@@ -180,10 +185,10 @@ const pagesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) 
     },
   );
 
-  // DELETE /api/pages/:id - delete page and its assignments
+  // DELETE /api/pages/:id - delete page and its assignments (owner or admin)
   fastify.delete<{ Params: { id: string } }>(
     '/api/pages/:id',
-    { preHandler: [fastify.authenticate, fastify.adminOnly] },
+    { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const pageId = parseInt(request.params.id, 10);
       if (isNaN(pageId)) {
@@ -200,6 +205,11 @@ const pagesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) 
         return reply.status(404).send({ error: 'Not Found', message: 'Page not found' });
       }
 
+      // Only owner or admin can delete
+      if (existing[0].created_by !== request.user.userId && request.user.role !== 'admin') {
+        return reply.status(403).send({ error: 'Forbidden', message: 'You can only delete your own pages' });
+      }
+
       // Delete assignments first
       await db
         .delete(service_page_assignments)
@@ -212,10 +222,10 @@ const pagesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) 
     },
   );
 
-  // PUT /api/pages/:id/services - set services for a page
+  // PUT /api/pages/:id/services - set services for a page (owner or admin)
   fastify.put<{ Params: { id: string } }>(
     '/api/pages/:id/services',
-    { preHandler: [fastify.authenticate, fastify.adminOnly] },
+    { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const pageId = parseInt(request.params.id, 10);
       if (isNaN(pageId)) {
@@ -237,6 +247,11 @@ const pagesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) 
 
       if (!existing.length) {
         return reply.status(404).send({ error: 'Not Found', message: 'Page not found' });
+      }
+
+      // Only owner or admin can update services
+      if (existing[0].created_by !== request.user.userId && request.user.role !== 'admin') {
+        return reply.status(403).send({ error: 'Forbidden', message: 'You can only edit your own pages' });
       }
 
       // Clear old assignments

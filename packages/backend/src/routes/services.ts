@@ -12,7 +12,8 @@ import {
 import { GeminiService } from '../services/gemini';
 
 const prefsSchema = z.object({
-  is_hidden: z.union([z.literal(0), z.literal(1)]),
+  is_hidden: z.union([z.literal(0), z.literal(1)]).optional(),
+  preferred_port: z.number().int().positive().nullable().optional(),
 });
 
 const updateServiceSchema = z.object({
@@ -51,19 +52,21 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
       const prefs = await db
         .select()
         .from(user_service_prefs)
-        .where(
-          and(
-            eq(user_service_prefs.user_id, userId),
-            eq(user_service_prefs.is_hidden, 1),
-          ),
-        );
+        .where(eq(user_service_prefs.user_id, userId));
 
-      const hiddenByUser = new Set(prefs.map((p) => p.service_id));
-
-      // 4. Filter services
-      const visibleServices = allServices.filter(
-        (s) => !hiddenByOverride.has(s.id) && !hiddenByUser.has(s.id),
+      const hiddenByUser = new Set(
+        prefs.filter((p: { is_hidden: number }) => p.is_hidden === 1).map((p: { service_id: number }) => p.service_id),
       );
+      const preferredPortMap = new Map<number, number | null>(
+        prefs.filter((p: { preferred_port: number | null }) => p.preferred_port != null).map((p: { service_id: number; preferred_port: number | null }) => [p.service_id, p.preferred_port]),
+      );
+
+      // 4. Filter services: exclude admin-hidden, user-hidden, and services without ports
+      const visibleServices = allServices.filter((s) => {
+        if (hiddenByOverride.has(s.id) || hiddenByUser.has(s.id)) return false;
+        const ports = JSON.parse(s.ports);
+        return Array.isArray(ports) && ports.length > 0;
+      });
 
       // 5. Get page assignments for visible services
       const serviceIds = visibleServices.map((s) => s.id);
@@ -106,11 +109,67 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
           ports: JSON.parse(s.ports),
           status: s.status,
           description: s.custom_description || s.ai_description || null,
+          preferred_port: preferredPortMap.get(s.id) ?? null,
           pages: servicePages,
         };
       });
 
       return reply.send(result);
+    },
+  );
+
+  // GET /api/services/settings - all non-admin-hidden services with is_hidden flag for settings page
+  fastify.get(
+    '/api/services/settings',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const userId = request.user.userId;
+
+      // 1. Get all services
+      const allServices = await db.select().from(services);
+
+      // 2. Get admin overrides (force-hidden services are excluded entirely)
+      const overrides = await db.select().from(admin_service_overrides);
+      const hiddenByOverride = new Set<number>();
+      for (const ov of overrides) {
+        if (ov.is_force_hidden === 1) {
+          if (ov.target_user_id === null || ov.target_user_id === userId) {
+            hiddenByOverride.add(ov.service_id);
+          }
+        }
+      }
+
+      // 3. Get user prefs (to include is_hidden flag)
+      const prefs = await db
+        .select()
+        .from(user_service_prefs)
+        .where(eq(user_service_prefs.user_id, userId));
+
+      const hiddenByUser = new Set(
+        prefs.filter((p) => p.is_hidden === 1).map((p) => p.service_id),
+      );
+      const settingsPreferredPortMap = new Map<number, number | null>(
+        prefs.filter((p) => p.preferred_port != null).map((p) => [p.service_id, p.preferred_port]),
+      );
+
+      // 4. Return all services NOT hidden by admin, with is_hidden flag
+      const settingsServices = allServices
+        .filter((s) => !hiddenByOverride.has(s.id))
+        .map((s) => ({
+          id: s.id,
+          container_id: s.container_id,
+          name: s.name,
+          image: s.image,
+          ports: JSON.parse(s.ports),
+          status: s.status,
+          description: s.custom_description || s.ai_description || null,
+          custom_description: s.custom_description,
+          ai_description: s.ai_description,
+          is_hidden: hiddenByUser.has(s.id) ? 1 : 0,
+          preferred_port: settingsPreferredPortMap.get(s.id) ?? null,
+        }));
+
+      return reply.send(settingsServices);
     },
   );
 
@@ -182,7 +241,7 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
       try {
         body = prefsSchema.parse(request.body);
       } catch {
-        return reply.status(400).send({ error: 'Bad Request', message: 'is_hidden must be 0 or 1' });
+        return reply.status(400).send({ error: 'Bad Request', message: 'Invalid prefs payload' });
       }
 
       const userId = request.user.userId;
@@ -197,6 +256,11 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
       if (!svc.length) {
         return reply.status(404).send({ error: 'Not Found', message: 'Service not found' });
       }
+
+      // Build update payload from provided fields
+      const updatePayload: { is_hidden?: 0 | 1; preferred_port?: number | null } = {};
+      if (body.is_hidden !== undefined) updatePayload.is_hidden = body.is_hidden;
+      if (body.preferred_port !== undefined) updatePayload.preferred_port = body.preferred_port;
 
       // Upsert user_service_prefs
       const existing = await db
@@ -213,13 +277,14 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
       if (existing.length > 0) {
         await db
           .update(user_service_prefs)
-          .set({ is_hidden: body.is_hidden })
+          .set(updatePayload)
           .where(eq(user_service_prefs.id, existing[0].id));
       } else {
         await db.insert(user_service_prefs).values({
           user_id: userId,
           service_id: serviceId,
-          is_hidden: body.is_hidden,
+          is_hidden: body.is_hidden ?? 0,
+          preferred_port: body.preferred_port ?? null,
         });
       }
 

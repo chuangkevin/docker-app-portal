@@ -51,6 +51,7 @@ export const user_service_prefs = sqliteTable('user_service_prefs', {
   user_id: integer('user_id').references(() => users.id).notNull(),
   service_id: integer('service_id').references(() => services.id).notNull(),
   is_hidden: integer('is_hidden').default(0).notNull(),
+  preferred_port: integer('preferred_port'),
 });
 
 export const admin_service_overrides = sqliteTable('admin_service_overrides', {

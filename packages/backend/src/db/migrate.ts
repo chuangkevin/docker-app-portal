@@ -57,6 +57,13 @@ export async function runMigrations(db: DrizzleDb): Promise<void> {
     )
   `);
 
+  // Add preferred_port column to user_service_prefs if it doesn't exist
+  try {
+    db.run(sql`ALTER TABLE user_service_prefs ADD COLUMN preferred_port INTEGER`);
+  } catch {
+    // Column already exists, ignore
+  }
+
   db.run(sql`
     CREATE TABLE IF NOT EXISTS admin_service_overrides (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
