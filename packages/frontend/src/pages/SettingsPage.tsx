@@ -36,6 +36,20 @@ const SettingsPage: React.FC = () => {
     },
   })
 
+  const portMutation = useMutation({
+    mutationFn: ({
+      id,
+      preferred_port,
+    }: {
+      id: number
+      preferred_port: number | null
+    }) => updateServicePrefs(id, { preferred_port }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['services-settings'] })
+      queryClient.invalidateQueries({ queryKey: ['services'] })
+    },
+  })
+
   return (
     <div className="min-h-screen bg-slate-900">
       {/* Header */}
@@ -101,6 +115,32 @@ const SettingsPage: React.FC = () => {
                         service.ai_description ||
                         '暫無描述'}
                     </p>
+                    {service.ports && service.ports.length > 1 && (
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className="text-slate-500 text-xs">Port：</span>
+                        <select
+                          value={service.preferred_port ?? ''}
+                          onChange={(e) =>
+                            portMutation.mutate({
+                              id: service.id,
+                              preferred_port: e.target.value
+                                ? Number(e.target.value)
+                                : null,
+                            })
+                          }
+                          className="bg-slate-700 border border-slate-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                        >
+                          <option value="">
+                            自動 ({service.ports[0]?.public})
+                          </option>
+                          {service.ports.map((p, idx) => (
+                            <option key={idx} value={p.public}>
+                              {p.public}:{p.private}/{p.type}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
 
                   <label className="relative inline-flex items-center cursor-pointer shrink-0">
