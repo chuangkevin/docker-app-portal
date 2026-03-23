@@ -24,7 +24,7 @@ services:
   frontend:
     image: ${DOCKERHUB_USERNAME}/docker-app-portal-frontend:latest
     ports:
-      - "8080:80"
+      - "1123:80"
     depends_on:
       backend:
         condition: service_healthy
