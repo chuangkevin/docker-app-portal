@@ -110,12 +110,12 @@
 - [x] 10.2 確認被強制隱藏的服務不出現在個人設定頁
 - [ ] 10.3 **[E2E 測試 - Playwright]** 一般使用者隱藏服務 → Landing Page 消失 → 再次顯示 → Landing Page 重現
 
-## 10.5 Bug修復與功能增強 (2026-03-23)
+## 10.5 Bug修復與功能增強 (2026-03-24)
 
-- [x] 10.5.1 修復：個人設定頁隱藏服務後從列表消失無法恢復 — 新增 GET /api/services/settings API，回傳所有非 admin 強制隱藏的服務（含 is_hidden 旗標）
-- [x] 10.5.2 功能：首頁過濾掉沒有綁定 port 的服務 — GET /api/services 增加 ports 過濾
-- [x] 10.5.3 功能：開放一般使用者建立/管理自訂頁面 — 後端 pages CRUD 改為 owner-or-admin 權限，前端個人設定頁新增頁面管理區塊
-- [x] 10.5.4 功能：多 port 服務讓使用者選擇偏好 port — user_service_prefs 新增 preferred_port 欄位，ServiceCard 使用 preferred_port，設定頁顯示 port 選擇器
+- [x] 10.5.1 修復：個人設定頁隱藏服務後從列表消失無法恢復 — 新增 `GET /api/services/settings` API，回傳所有非 admin 強制隱藏的服務（含 `is_hidden` 旗標），前端 SettingsPage 改用此 API
+- [x] 10.5.2 功能：首頁過濾掉沒有綁定 port 的服務 — `GET /api/services` 增加 ports 為空陣列時排除
+- [x] 10.5.3 功能：開放一般使用者建立/管理自訂頁面 — 後端 pages POST/PATCH/DELETE/PUT 改為 owner-or-admin 權限檢查，前端個人設定頁新增「我的頁面」區塊（建立/重命名/刪除/指派服務）
+- [x] 10.5.4 功能：多 port 服務讓使用者選擇偏好 port — `user_service_prefs` 新增 `preferred_port` 欄位（含 migration），`PATCH /api/services/:id/prefs` 支援 `preferred_port` 參數，ServiceCard 優先使用 `preferred_port`，設定頁多 port 服務顯示下拉選擇器
 
 ### ⏸️ CHECKPOINT D — 大階段：Landing Page + 個人設定 + Bug修復與功能增強 ✅ 程式碼完成，待部署驗證
 
