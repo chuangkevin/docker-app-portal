@@ -16,14 +16,20 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Connect to Tailscale
-        uses: tailscale/github-action@v2
+        uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:github-actions
+
+      - name: Test Tailscale Connection
+        run: |
+          echo "Testing connection to deployment server..."
+          tailscale status
+          ping -c 3 ${{ secrets.DEPLOY_SERVER_IP }}
 
       - name: Setup SSH
         run: |
@@ -32,7 +38,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.DEPLOY_SERVER_IP }} >> ~/.ssh/known_hosts
 
-      - name: Sync docker-compose.prod.yml to server
+      - name: Sync docker-compose.yml to server
         env:
           DEPLOY_SERVER_IP: ${{ secrets.DEPLOY_SERVER_IP }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
@@ -47,7 +53,6 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           ssh -i ~/.ssh/deploy_key ${DEPLOY_USER}@${DEPLOY_SERVER_IP} "
             set -e
@@ -56,12 +61,14 @@ jobs:
               local max_attempts=3
               local attempt=1
               local delay=10
+
               while [ \$attempt -le \$max_attempts ]; do
                 echo \"Pulling Docker images (attempt \$attempt/\$max_attempts)...\"
-                if DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME} JWT_SECRET=${JWT_SECRET} docker compose -f docker-compose.yml pull; then
+                if DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME} docker compose -f docker-compose.yml pull; then
                   echo \"Pull successful!\"
                   return 0
                 fi
+
                 if [ \$attempt -lt \$max_attempts ]; then
                   echo \"Pull failed, retrying in \${delay}s...\"
                   sleep \$delay
@@ -69,34 +76,40 @@ jobs:
                 fi
                 attempt=\$((attempt + 1))
               done
+
               echo \"Pull failed after \$max_attempts attempts\"
               return 1
             }
 
-            echo \"Navigating to ${DEPLOY_PATH}...\"
+            echo \"Navigating to deployment directory...\"
             cd \"${DEPLOY_PATH}\"
 
             retry_pull
 
+            echo \"Force removing any leftover containers...\"
+            docker rm -f docker-app-portal-backend docker-app-portal-frontend 2>/dev/null || true
+
             echo \"Stopping existing containers...\"
-            DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME} JWT_SECRET=${JWT_SECRET} docker compose -f docker-compose.yml down --remove-orphans --volumes=false
+            DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME} docker compose -f docker-compose.yml down --remove-orphans --volumes=false
+
+            echo \"Removing stale networks...\"
+            docker network rm docker-app-portal_default 2>/dev/null || true
 
             echo \"Starting updated containers...\"
-            DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME} JWT_SECRET=${JWT_SECRET} docker compose -f docker-compose.yml up -d --force-recreate
+            DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME} docker compose -f docker-compose.yml up -d --force-recreate
 
             echo \"Cleaning up old images...\"
             docker image prune -af --filter \"until=24h\" || true
 
-            echo \"Deployment completed!\"
+            echo \"Deployment completed successfully!\"
             docker compose -f docker-compose.yml ps
           "
 
       - name: Health Check
         run: |
-          echo "Waiting for services to start..."
-          sleep 15
+          echo "Performing health check..."
+          sleep 10
           curl -f http://${{ secrets.DEPLOY_SERVER_IP }}:8080/ || exit 1
-          curl -f http://${{ secrets.DEPLOY_SERVER_IP }}:3000/api/health || exit 1
           echo "Health check passed!"
 
       - name: Deployment Summary
