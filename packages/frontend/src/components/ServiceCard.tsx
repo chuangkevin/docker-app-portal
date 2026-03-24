@@ -16,7 +16,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
   isDragging = false,
 }) => {
   const description =
-    service.custom_description || service.ai_description || '暫無描述'
+    service.custom_description || service.ai_description || service.description || '暫無描述'
   const firstPublicPort = service.ports.find((p) => p.public)?.public
   const openPort = service.preferred_port ?? firstPublicPort
 

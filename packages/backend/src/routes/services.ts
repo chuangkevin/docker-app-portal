@@ -62,12 +62,12 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
         prefs.filter((p: { preferred_port: number | null }) => p.preferred_port != null).map((p: { service_id: number; preferred_port: number | null }) => [p.service_id, p.preferred_port]),
       );
 
-      // 4. Filter services: exclude offline, admin-hidden, user-hidden, and services without ports
+      // 4. Filter services: exclude offline, admin-hidden, user-hidden, and services without public ports
       const visibleServices = allServices.filter((s) => {
         if (s.status === 'offline') return false;
         if (hiddenByOverride.has(s.id) || hiddenByUser.has(s.id)) return false;
         const ports = JSON.parse(s.ports);
-        return Array.isArray(ports) && ports.length > 0;
+        return Array.isArray(ports) && ports.some((p: { public: number }) => p.public > 0);
       });
 
       // 5. Get page assignments for visible services
@@ -112,6 +112,8 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
           ports: JSON.parse(s.ports),
           status: s.status,
           description: s.custom_description || s.ai_description || null,
+          ai_description: s.ai_description,
+          custom_description: s.custom_description,
           preferred_port: preferredPortMap.get(s.id) ?? null,
           pages: servicePages,
         };
