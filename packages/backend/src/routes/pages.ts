@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { eq, asc } from 'drizzle-orm';
+import { eq, and, asc } from 'drizzle-orm';
 import type { DrizzleDb } from '../db/index';
 import {
   pages,
@@ -38,6 +38,10 @@ const setPageServicesSchema = z.object({
 
 const updateAssignmentsSchema = z.object({
   page_ids: z.array(z.number().int()),
+});
+
+const updatePageOrderSchema = z.object({
+  serviceIds: z.array(z.number().int()),
 });
 
 const pagesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) => {
@@ -268,6 +272,50 @@ const pagesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) 
             order: s.order,
           })),
         );
+      }
+
+      return reply.send({ success: true });
+    },
+  );
+
+  // PATCH /api/pages/:id/order - reorder services within a page (any authenticated user)
+  fastify.patch<{ Params: { id: string } }>(
+    '/api/pages/:id/order',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const pageId = parseInt(request.params.id, 10);
+      if (isNaN(pageId)) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'Invalid page id' });
+      }
+
+      let body: z.infer<typeof updatePageOrderSchema>;
+      try {
+        body = updatePageOrderSchema.parse(request.body);
+      } catch {
+        return reply.status(400).send({ error: 'Bad Request', message: 'Invalid request body' });
+      }
+
+      const existing = await db
+        .select()
+        .from(pages)
+        .where(eq(pages.id, pageId))
+        .limit(1);
+
+      if (!existing.length) {
+        return reply.status(404).send({ error: 'Not Found', message: 'Page not found' });
+      }
+
+      // Update order for each service in this page
+      for (let i = 0; i < body.serviceIds.length; i++) {
+        await db
+          .update(service_page_assignments)
+          .set({ order: i })
+          .where(
+            and(
+              eq(service_page_assignments.page_id, pageId),
+              eq(service_page_assignments.service_id, body.serviceIds[i]),
+            ),
+          );
       }
 
       return reply.send({ success: true });
