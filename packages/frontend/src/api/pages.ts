@@ -36,3 +36,10 @@ export async function setPageServices(
 ): Promise<void> {
   await apiClient.put(`/pages/${id}/services`, { services })
 }
+
+export async function updatePageOrder(
+  pageId: number,
+  serviceIds: number[]
+): Promise<void> {
+  await apiClient.patch(`/pages/${pageId}/order`, { serviceIds })
+}
