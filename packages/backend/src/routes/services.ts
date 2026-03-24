@@ -18,6 +18,7 @@ const prefsSchema = z.object({
 
 const updateServiceSchema = z.object({
   custom_description: z.string().nullable().optional(),
+  display_name: z.string().nullable().optional(),
 });
 
 const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) => {
@@ -105,6 +106,7 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
           id: s.id,
           container_id: s.container_id,
           name: s.name,
+          display_name: s.display_name,
           image: s.image,
           ports: JSON.parse(s.ports),
           status: s.status,
@@ -159,6 +161,7 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
           id: s.id,
           container_id: s.container_id,
           name: s.name,
+          display_name: s.display_name,
           image: s.image,
           ports: JSON.parse(s.ports),
           status: s.status,
@@ -210,6 +213,7 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
           id: s.id,
           container_id: s.container_id,
           name: s.name,
+          display_name: s.display_name,
           image: s.image,
           ports: JSON.parse(s.ports),
           status: s.status,
@@ -376,10 +380,17 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
         return reply.status(404).send({ error: 'Not Found', message: 'Service not found' });
       }
 
+      const updatePayload: { custom_description?: string | null; display_name?: string | null } = {};
       if (body.custom_description !== undefined) {
+        updatePayload.custom_description = body.custom_description;
+      }
+      if (body.display_name !== undefined) {
+        updatePayload.display_name = body.display_name;
+      }
+      if (Object.keys(updatePayload).length > 0) {
         await db
           .update(services)
-          .set({ custom_description: body.custom_description })
+          .set(updatePayload)
           .where(eq(services.id, serviceId));
       }
 

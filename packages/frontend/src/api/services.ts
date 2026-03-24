@@ -16,6 +16,7 @@ export interface Service {
   id: number
   container_id: string
   name: string
+  display_name?: string | null
   image: string
   ports: ServicePort[]
   status: 'online' | 'offline'
@@ -55,7 +56,7 @@ export async function regenerateDescription(id: number): Promise<void> {
 
 export async function updateService(
   id: number,
-  payload: { custom_description?: string | null }
+  payload: { custom_description?: string | null; display_name?: string | null }
 ): Promise<void> {
   await apiClient.patch(`/services/${id}`, payload)
 }

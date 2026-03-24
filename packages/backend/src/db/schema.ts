@@ -25,6 +25,7 @@ export const services = sqliteTable('services', {
   image: text('image').notNull(),
   ports: text('ports').notNull().default('[]'),
   labels: text('labels').notNull().default('{}'),
+  display_name: text('display_name'),
   ai_description: text('ai_description'),
   custom_description: text('custom_description'),
   status: text('status', { enum: ['online', 'offline'] }).default('online').notNull(),

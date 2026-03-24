@@ -186,6 +186,8 @@ function ServicesTab() {
 
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editDesc, setEditDesc] = useState('')
+  const [editingDisplayNameId, setEditingDisplayNameId] = useState<number | null>(null)
+  const [editDisplayName, setEditDisplayName] = useState('')
 
   const updateDescMutation = useMutation({
     mutationFn: ({ id, desc }: { id: number; desc: string }) =>
@@ -193,6 +195,15 @@ function ServicesTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-services'] })
       setEditingId(null)
+    },
+  })
+
+  const updateDisplayNameMutation = useMutation({
+    mutationFn: ({ id, displayName }: { id: number; displayName: string }) =>
+      updateService(id, { display_name: displayName || null }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-services'] })
+      setEditingDisplayNameId(null)
     },
   })
 
@@ -267,6 +278,58 @@ function ServicesTab() {
                 className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0"
               />
             </label>
+          </div>
+
+          {/* Display Name */}
+          <div className="mb-3">
+            {editingDisplayNameId === service.id ? (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={editDisplayName}
+                  onChange={(e) => setEditDisplayName(e.target.value)}
+                  placeholder="自訂顯示名稱..."
+                  className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateDisplayNameMutation.mutate({
+                      id: service.id,
+                      displayName: editDisplayName,
+                    })
+                  }
+                  disabled={updateDisplayNameMutation.isPending}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition disabled:opacity-40"
+                >
+                  儲存
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingDisplayNameId(null)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-600 text-slate-400 hover:text-white transition"
+                >
+                  取消
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 text-xs">顯示名稱：</span>
+                <span className="text-slate-300 text-sm flex-1 truncate">
+                  {service.display_name || '（使用容器名稱）'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingDisplayNameId(service.id)
+                    setEditDisplayName(service.display_name || '')
+                  }}
+                  className="text-xs text-blue-400 hover:text-blue-300 transition shrink-0"
+                >
+                  編輯
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Description */}

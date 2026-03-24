@@ -64,6 +64,13 @@ export async function runMigrations(db: DrizzleDb): Promise<void> {
     // Column already exists, ignore
   }
 
+  // Add display_name column to services if it doesn't exist
+  try {
+    db.run(sql`ALTER TABLE services ADD COLUMN display_name TEXT`);
+  } catch {
+    // Column already exists, ignore
+  }
+
   db.run(sql`
     CREATE TABLE IF NOT EXISTS admin_service_overrides (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -23,9 +23,14 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
   return (
     <div className="bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-slate-500 transition flex flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-white font-bold text-lg truncate flex-1">
-          {service.name}
-        </h3>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-white font-bold text-lg truncate">
+            {service.display_name || service.name}
+          </h3>
+          {service.display_name && (
+            <p className="text-slate-500 text-xs truncate">{service.name}</p>
+          )}
+        </div>
         <span
           className={`flex items-center gap-1.5 text-xs font-medium shrink-0 ${
             service.status === 'online' ? 'text-green-400' : 'text-slate-500'
