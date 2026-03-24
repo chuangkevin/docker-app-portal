@@ -95,4 +95,17 @@ export async function runMigrations(db: DrizzleDb): Promise<void> {
       value TEXT NOT NULL
     )
   `);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS api_key_usage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      api_key_suffix TEXT NOT NULL,
+      model TEXT NOT NULL,
+      call_type TEXT NOT NULL,
+      prompt_tokens INTEGER DEFAULT 0,
+      completion_tokens INTEGER DEFAULT 0,
+      total_tokens INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
 }

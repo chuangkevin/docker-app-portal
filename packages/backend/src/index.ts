@@ -14,6 +14,7 @@ import pagesRoute from './routes/pages';
 import adminRoute from './routes/admin';
 import { DockerService } from './services/docker';
 import { GeminiService } from './services/gemini';
+import { initGeminiKeys } from './services/geminiKeys';
 import path from 'path';
 import fs from 'fs';
 
@@ -35,6 +36,9 @@ async function buildServer() {
   // Setup DB
   const { db } = createDb(DATABASE_PATH);
   await runMigrations(db);
+
+  // Initialize Gemini key pool
+  initGeminiKeys(db);
 
   // Register plugins
   await fastify.register(fastifyCookie);

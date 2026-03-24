@@ -9,6 +9,7 @@ import {
   user_service_prefs,
   refresh_tokens,
 } from '../db/schema';
+import * as geminiKeys from '../services/geminiKeys';
 
 const geminiKeySchema = z.object({
   key: z.string().min(1),
@@ -274,6 +275,74 @@ const adminRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) 
       return reply.send({ success: true });
     },
   );
+
+  // --- API Key Pool Endpoints ---
+
+  // GET /api/admin/settings/api-keys
+  fastify.get(
+    '/api/admin/settings/api-keys',
+    { preHandler: [fastify.authenticate, fastify.adminOnly] },
+    async (_request, reply) => {
+      const keys = geminiKeys.getKeyStats();
+      return reply.send({ keys });
+    },
+  );
+
+  // POST /api/admin/settings/api-keys
+  fastify.post(
+    '/api/admin/settings/api-keys',
+    { preHandler: [fastify.authenticate, fastify.adminOnly] },
+    async (request, reply) => {
+      const body = request.body as { keys?: string };
+      if (!body?.keys || typeof body.keys !== 'string') {
+        return reply.status(400).send({ error: 'Bad Request', message: 'keys is required' });
+      }
+
+      const result = geminiKeys.addKeysFromText(body.keys);
+      if (result.added === 0 && result.total === geminiKeys.loadKeys().length) {
+        const lines = body.keys.split(/[\n,]+/);
+        const hasAny = lines.some((l) => {
+          const t = l.trim();
+          return t.startsWith('AIza') && t.length >= 30;
+        });
+        if (!hasAny) {
+          return reply.status(400).send({ error: 'Bad Request', message: '未偵測到有效的 API Key' });
+        }
+      }
+
+      return reply.send({ added: result.added, total: result.total });
+    },
+  );
+
+  // DELETE /api/admin/settings/api-keys/:suffix
+  fastify.delete<{ Params: { suffix: string } }>(
+    '/api/admin/settings/api-keys/:suffix',
+    { preHandler: [fastify.authenticate, fastify.adminOnly] },
+    async (request, reply) => {
+      const { suffix } = request.params;
+      if (!suffix || suffix.length !== 4) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'Invalid suffix' });
+      }
+
+      const removed = geminiKeys.removeKeyBySuffix(suffix);
+      if (!removed) {
+        return reply.status(404).send({ error: 'Not Found', message: 'Key not found' });
+      }
+
+      return reply.send({ success: true });
+    },
+  );
+
+  // GET /api/admin/settings/token-usage
+  fastify.get(
+    '/api/admin/settings/token-usage',
+    { preHandler: [fastify.authenticate, fastify.adminOnly] },
+    async (_request, reply) => {
+      const stats = geminiKeys.getUsageStats();
+      return reply.send(stats);
+    },
+  );
+
 };
 
 export default adminRoute;
