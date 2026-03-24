@@ -62,8 +62,9 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
         prefs.filter((p: { preferred_port: number | null }) => p.preferred_port != null).map((p: { service_id: number; preferred_port: number | null }) => [p.service_id, p.preferred_port]),
       );
 
-      // 4. Filter services: exclude admin-hidden, user-hidden, and services without ports
+      // 4. Filter services: exclude offline, admin-hidden, user-hidden, and services without ports
       const visibleServices = allServices.filter((s) => {
+        if (s.status === 'offline') return false;
         if (hiddenByOverride.has(s.id) || hiddenByUser.has(s.id)) return false;
         const ports = JSON.parse(s.ports);
         return Array.isArray(ports) && ports.length > 0;
