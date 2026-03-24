@@ -1,7 +1,7 @@
 import Docker from 'dockerode';
-import { eq, lt } from 'drizzle-orm';
+import { eq, lt, and, sql } from 'drizzle-orm';
 import type { DrizzleDb } from '../db/index';
-import { services } from '../db/schema';
+import { services, service_page_assignments, user_service_prefs, admin_service_overrides } from '../db/schema';
 import type { GeminiService } from './gemini';
 
 export interface ContainerInfo {
@@ -88,6 +88,24 @@ export class DockerService {
       .update(services)
       .set({ status: 'offline' })
       .where(lt(services.last_seen_at, scanTime));
+
+    // Clean up services offline for more than 24 hours
+    const oneDayAgo = scanTime - 24 * 60 * 60 * 1000;
+    const staleServices = await this.db
+      .select({ id: services.id })
+      .from(services)
+      .where(and(eq(services.status, 'offline'), lt(services.last_seen_at, oneDayAgo)));
+
+    for (const stale of staleServices) {
+      await this.db.delete(service_page_assignments).where(eq(service_page_assignments.service_id, stale.id));
+      await this.db.delete(user_service_prefs).where(eq(user_service_prefs.service_id, stale.id));
+      await this.db.delete(admin_service_overrides).where(eq(admin_service_overrides.service_id, stale.id));
+      await this.db.delete(services).where(eq(services.id, stale.id));
+    }
+
+    if (staleServices.length > 0) {
+      console.log(`Cleaned up ${staleServices.length} stale offline services`);
+    }
 
     // Generate AI descriptions for services that don't have one
     const needsDescription = await this.db
