@@ -117,7 +117,42 @@
 - [x] 10.5.3 功能：開放一般使用者建立/管理自訂頁面 — 後端 pages POST/PATCH/DELETE/PUT 改為 owner-or-admin 權限檢查，前端個人設定頁新增「我的頁面」區塊（建立/重命名/刪除/指派服務）
 - [x] 10.5.4 功能：多 port 服務讓使用者選擇偏好 port — `user_service_prefs` 新增 `preferred_port` 欄位（含 migration），`PATCH /api/services/:id/prefs` 支援 `preferred_port` 參數，ServiceCard 優先使用 `preferred_port`，設定頁多 port 服務顯示下拉選擇器
 
-### ⏸️ CHECKPOINT D — 大階段：Landing Page + 個人設定 + Bug修復與功能增強 ✅ 程式碼完成，待部署驗證
+### ⏸️ CHECKPOINT D — 大階段：Landing Page + 個人設定 + Bug修復與功能增強 ✅ 已部署驗證
+
+---
+
+## 10.6 功能增強 v2 (2026-03-24)
+
+### Gemini API Key Pool
+- [x] 10.6.1 後端：新增 `api_key_usage` 表 migration — 追蹤每個 key 的 token 用量（suffix、model、call_type、tokens、created_at）
+- [x] 10.6.2 後端：新增 `geminiKeys.ts` service — loadKeys()（60s 快取）、getNextKey()（round-robin）、getKeyExcluding()（429 failover）、trackUsage()、getUsageStats()、getKeyStats()、addKeysFromText()、removeKeyBySuffix()
+- [x] 10.6.3 後端：改寫 `gemini.ts` — 使用 geminiKeys + withRetry 機制（429 → 3s delay → 切換 key → 最多重試 2 次）
+- [x] 10.6.4 後端：新增 API — `GET /api/admin/settings/api-keys`、`POST /api/admin/settings/api-keys`（批次 parse AIza 開頭）、`DELETE /api/admin/settings/api-keys/:suffix`、`GET /api/admin/settings/token-usage`
+- [x] 10.6.5 前端：Admin 設定頁重寫 SystemTab — textarea 批次貼上 key + key 列表（suffix + today 用量 + 刪除）+ token 用量統計儀表板（today/week/month）
+- [x] 10.6.6 後端：向下相容舊 `gemini_api_key` setting，loadKeys() 合併 `gemini_api_keys` + `gemini_api_key` 去重
+
+### 自訂服務名稱（display_name）
+- [x] 10.6.7 後端：`services` 表新增 `display_name` 欄位（ALTER TABLE migration）
+- [x] 10.6.8 後端：`GET /api/services` 回傳 `display_name`、`ai_description`、`custom_description`
+- [x] 10.6.9 後端：`PATCH /api/services/:id` 支援更新 `display_name`
+- [x] 10.6.10 前端：ServiceCard 主標題改為 `display_name || name`，有 display_name 時 container name 為副標題
+- [x] 10.6.11 前端：Admin 服務管理頁每個服務加 display_name 編輯欄位
+
+### Landing Page 拖拉排版（編輯模式）
+- [x] 10.6.12 前端：安裝 @dnd-kit/core + @dnd-kit/sortable + @dnd-kit/utilities
+- [x] 10.6.13 後端：新增 `PATCH /api/pages/:pageId/order` — 按 serviceIds 陣列順序更新 order
+- [x] 10.6.14 前端：HomePage 新增 isEditing state + 編輯模式按鈕（鉛筆 ↔ 勾勾）
+- [x] 10.6.15 前端：編輯模式下 @dnd-kit SortableServiceCard + 拖拉手把 + 虛線邊框
+- [x] 10.6.16 前端：拖拉放開後 debounce 300ms 呼叫 API 儲存順序
+
+### Bug 修復
+- [x] 10.6.17 後端：offline 服務不顯示在首頁 — `GET /api/services` 過濾 `status === 'offline'`
+- [x] 10.6.18 後端：無對外 port 的服務不顯示 — 改為 `ports.some(p => p.public > 0)` 過濾
+- [x] 10.6.19 後端：offline 超過 24h 的服務自動從 DB 清除（含關聯 assignments、prefs、overrides）
+- [x] 10.6.20 前端：ServiceCard 描述 fallback chain 修正 — `custom_description || ai_description || description`
+- [x] 10.6.21 前端：nginx no-cache header for index.html — 防止瀏覽器快取舊版
+
+### ⏸️ CHECKPOINT D2 — 功能增強 v2 ✅ 已完成，已部署
 
 ---
 
