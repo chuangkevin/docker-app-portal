@@ -74,9 +74,22 @@ export const settings = sqliteTable('settings', {
   value: text('value').notNull(),
 });
 
+export const custom_links = sqliteTable('custom_links', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  url: text('url').notNull(),
+  description: text('description'),
+  icon_color: text('icon_color').default('#4ECDC4').notNull(),
+  created_by: integer('created_by').references(() => users.id).notNull(),
+  is_global: integer('is_global').default(0).notNull(), // 1 = admin 建立，所有人可見
+  order: integer('order').default(0).notNull(),
+  created_at: integer('created_at').default(sql`(unixepoch() * 1000)`).notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Service = typeof services.$inferSelect;
 export type Page = typeof pages.$inferSelect;
 export type RefreshToken = typeof refresh_tokens.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
+export type CustomLink = typeof custom_links.$inferSelect;

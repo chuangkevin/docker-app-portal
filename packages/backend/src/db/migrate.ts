@@ -97,6 +97,20 @@ export async function runMigrations(db: DrizzleDb): Promise<void> {
   `);
 
   db.run(sql`
+    CREATE TABLE IF NOT EXISTS custom_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      description TEXT,
+      icon_color TEXT NOT NULL DEFAULT '#4ECDC4',
+      created_by INTEGER NOT NULL REFERENCES users(id),
+      is_global INTEGER NOT NULL DEFAULT 0,
+      "order" INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+    )
+  `);
+
+  db.run(sql`
     CREATE TABLE IF NOT EXISTS api_key_usage (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       api_key_suffix TEXT NOT NULL,

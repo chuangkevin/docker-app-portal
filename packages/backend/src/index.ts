@@ -12,6 +12,7 @@ import authRoute from './routes/auth';
 import servicesRoute from './routes/services';
 import pagesRoute from './routes/pages';
 import adminRoute from './routes/admin';
+import linksRoute from './routes/links';
 import { DockerService } from './services/docker';
 import { GeminiService } from './services/gemini';
 import { initGeminiKeys } from './services/geminiKeys';
@@ -56,6 +57,7 @@ async function buildServer() {
   await fastify.register(servicesRoute, { db });
   await fastify.register(pagesRoute, { db });
   await fastify.register(adminRoute, { db });
+  await fastify.register(linksRoute, { db });
 
   return { fastify, db };
 }

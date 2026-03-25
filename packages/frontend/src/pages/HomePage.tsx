@@ -17,9 +17,12 @@ import {
 import { useAuthStore } from '../stores/authStore'
 import { getServices } from '../api/services'
 import { getPages, updatePageOrder } from '../api/pages'
+import { getLinks } from '../api/links'
 import ServiceCard from '../components/ServiceCard'
 import SortableServiceCard from '../components/SortableServiceCard'
+import LinkCard from '../components/LinkCard'
 import type { Service } from '../api/services'
+import type { CustomLink } from '../api/links'
 import type { Page } from '../api/pages'
 
 const TAB_ALL = '__all__'
@@ -53,6 +56,26 @@ const HomePage: React.FC = () => {
     queryKey: ['pages'],
     queryFn: getPages,
   })
+
+  const { data: links } = useQuery({
+    queryKey: ['links'],
+    queryFn: getLinks,
+  })
+
+  // Filter links by search
+  const filteredLinks = useMemo(() => {
+    if (!links) return []
+    // Only show links on "全部" or "未分類" tabs
+    if (activeTab !== TAB_ALL && activeTab !== TAB_UNCATEGORIZED) return []
+    const term = search.toLowerCase().trim()
+    if (!term) return links
+    return links.filter(
+      (l: CustomLink) =>
+        l.name.toLowerCase().includes(term) ||
+        (l.description && l.description.toLowerCase().includes(term)) ||
+        l.url.toLowerCase().includes(term)
+    )
+  }, [links, search, activeTab])
 
   const handleSwitchUser = () => {
     clearAuth()
@@ -323,7 +346,7 @@ const HomePage: React.FC = () => {
           <div className="flex items-center justify-center py-20">
             <div className="w-10 h-10 border-4 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
           </div>
-        ) : visibleServices.length === 0 ? (
+        ) : visibleServices.length === 0 && filteredLinks.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-slate-500 text-lg">
               {search ? '找不到符合條件的服務' : '目前沒有可顯示的服務'}
@@ -353,7 +376,10 @@ const HomePage: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {visibleServices.map((service: Service) => (
-              <ServiceCard key={service.id} service={service} />
+              <ServiceCard key={`svc-${service.id}`} service={service} />
+            ))}
+            {filteredLinks.map((link: CustomLink) => (
+              <LinkCard key={`link-${link.id}`} link={link} />
             ))}
           </div>
         )}
