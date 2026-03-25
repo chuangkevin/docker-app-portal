@@ -52,10 +52,11 @@ export class DockerService {
     const containers = await this.scanContainers();
 
     for (const container of containers) {
+      // Match by container name (stable across recreations) instead of container_id
       const existing = await this.db
         .select()
         .from(services)
-        .where(eq(services.container_id, container.container_id))
+        .where(eq(services.name, container.name))
         .limit(1);
 
       if (existing.length === 0) {
@@ -69,17 +70,18 @@ export class DockerService {
           last_seen_at: scanTime,
         });
       } else {
+        // Update container_id + metadata, preserving display_name, descriptions, etc.
         await this.db
           .update(services)
           .set({
-            name: container.name,
+            container_id: container.container_id,
             image: container.image,
             ports: JSON.stringify(container.ports),
             labels: JSON.stringify(container.labels),
             status: 'online',
             last_seen_at: scanTime,
           })
-          .where(eq(services.container_id, container.container_id));
+          .where(eq(services.name, container.name));
       }
     }
 

@@ -276,42 +276,38 @@ function LinkManagementSection() {
     <div className="space-y-4">
       {/* Add new link form */}
       <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 space-y-3">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="名稱"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-sm"
-          />
-          <input
-            type="url"
-            placeholder="https://..."
-            value={newUrl}
-            onChange={(e) => setNewUrl(e.target.value)}
-            className="flex-[2] bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-sm"
-          />
-        </div>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="描述（選填）"
-            value={newDesc}
-            onChange={(e) => setNewDesc(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleCreate()
-            }}
-            className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-sm"
-          />
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={!newName.trim() || !newUrl.trim() || createMutation.isPending}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            新增連結
-          </button>
-        </div>
+        <input
+          type="text"
+          placeholder="名稱"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-sm"
+        />
+        <input
+          type="url"
+          placeholder="https://..."
+          value={newUrl}
+          onChange={(e) => setNewUrl(e.target.value)}
+          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-sm"
+        />
+        <input
+          type="text"
+          placeholder="描述（選填）"
+          value={newDesc}
+          onChange={(e) => setNewDesc(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleCreate()
+          }}
+          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-sm"
+        />
+        <button
+          type="button"
+          onClick={handleCreate}
+          disabled={!newName.trim() || !newUrl.trim() || createMutation.isPending}
+          className="w-full py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          新增連結
+        </button>
       </div>
 
       {/* Link list */}
@@ -324,28 +320,28 @@ function LinkManagementSection() {
             >
               {editingId === link.id ? (
                 <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="名稱"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+                  <input
+                    type="url"
+                    value={editUrl}
+                    onChange={(e) => setEditUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+                  <input
+                    type="text"
+                    placeholder="描述"
+                    value={editDesc}
+                    onChange={(e) => setEditDesc(e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
                   <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
-                    />
-                    <input
-                      type="url"
-                      value={editUrl}
-                      onChange={(e) => setEditUrl(e.target.value)}
-                      className="flex-[2] bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="描述"
-                      value={editDesc}
-                      onChange={(e) => setEditDesc(e.target.value)}
-                      className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
-                    />
                     <button
                       type="button"
                       onClick={() =>
@@ -357,14 +353,14 @@ function LinkManagementSection() {
                         })
                       }
                       disabled={!editName.trim() || !editUrl.trim()}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition disabled:opacity-40"
+                      className="flex-1 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition disabled:opacity-40"
                     >
                       儲存
                     </button>
                     <button
                       type="button"
                       onClick={() => setEditingId(null)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-600 text-slate-400 hover:text-white transition"
+                      className="flex-1 py-1.5 rounded-lg text-xs font-medium border border-slate-600 text-slate-400 hover:text-white transition"
                     >
                       取消
                     </button>
