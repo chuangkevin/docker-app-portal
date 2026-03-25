@@ -53,13 +53,12 @@ export class DockerService {
 
     for (const container of containers) {
       // Match by container name (stable across recreations) instead of container_id
-      const existing = await this.db
+      const duplicates = await this.db
         .select()
         .from(services)
-        .where(eq(services.name, container.name))
-        .limit(1);
+        .where(eq(services.name, container.name));
 
-      if (existing.length === 0) {
+      if (duplicates.length === 0) {
         await this.db.insert(services).values({
           container_id: container.container_id,
           name: container.name,
@@ -70,7 +69,14 @@ export class DockerService {
           last_seen_at: scanTime,
         });
       } else {
-        // Update container_id + metadata, preserving display_name, descriptions, etc.
+        // Pick the best record to keep: prefer one with display_name or custom_description
+        const keeper = duplicates.reduce((best, cur) => {
+          const bestScore = (best.display_name ? 2 : 0) + (best.custom_description ? 1 : 0) + (best.ai_description ? 0.5 : 0);
+          const curScore = (cur.display_name ? 2 : 0) + (cur.custom_description ? 1 : 0) + (cur.ai_description ? 0.5 : 0);
+          return curScore > bestScore ? cur : best;
+        });
+
+        // Update the keeper with current container info
         await this.db
           .update(services)
           .set({
@@ -81,7 +87,37 @@ export class DockerService {
             status: 'online',
             last_seen_at: scanTime,
           })
-          .where(eq(services.name, container.name));
+          .where(eq(services.id, keeper.id));
+
+        // Delete zombie duplicates, migrating associations to the keeper
+        const zombieIds = duplicates.filter((d) => d.id !== keeper.id).map((d) => d.id);
+        for (const zombieId of zombieIds) {
+          // Migrate page assignments (skip if keeper already has them)
+          const zombieAssignments = await this.db.select().from(service_page_assignments)
+            .where(eq(service_page_assignments.service_id, zombieId));
+          const keeperAssignments = await this.db.select().from(service_page_assignments)
+            .where(eq(service_page_assignments.service_id, keeper.id));
+          const keeperPageIds = new Set(keeperAssignments.map((a) => a.page_id));
+          for (const assignment of zombieAssignments) {
+            if (!keeperPageIds.has(assignment.page_id)) {
+              await this.db.update(service_page_assignments)
+                .set({ service_id: keeper.id })
+                .where(eq(service_page_assignments.id, assignment.id));
+            } else {
+              await this.db.delete(service_page_assignments)
+                .where(eq(service_page_assignments.id, assignment.id));
+            }
+          }
+
+          // Delete zombie's prefs and overrides (keeper's own prefs take priority)
+          await this.db.delete(user_service_prefs).where(eq(user_service_prefs.service_id, zombieId));
+          await this.db.delete(admin_service_overrides).where(eq(admin_service_overrides.service_id, zombieId));
+          await this.db.delete(services).where(eq(services.id, zombieId));
+        }
+
+        if (zombieIds.length > 0) {
+          console.log(`Merged ${zombieIds.length} duplicate(s) for service "${container.name}"`);
+        }
       }
     }
 
