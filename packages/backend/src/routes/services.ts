@@ -55,8 +55,9 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: Caddy
         .where(eq(user_pins.user_id, userId));
       const pinnedServiceIds = new Set(pins.map((p) => p.service_id));
 
-      // Filter to only services with a domain binding, deduplicate by domain
+      // Filter to only online services with a domain binding, deduplicate by domain
       const servicesWithDomain = allServices
+        .filter((s) => s.status === 'online')
         .map((s) => {
           const domain = getDomainForService(s.ports);
           if (!domain) return null;

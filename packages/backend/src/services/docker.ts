@@ -76,6 +76,31 @@ export class DockerService {
           return curScore > bestScore ? cur : best;
         });
 
+        // Merge metadata from all duplicates into keeper (don't lose user customizations)
+        const zombies = duplicates.filter((d) => d.id !== keeper.id);
+        for (const zombie of zombies) {
+          const mergePayload: Record<string, string> = {};
+          if (!keeper.display_name && zombie.display_name) {
+            mergePayload.display_name = zombie.display_name;
+            keeper.display_name = zombie.display_name;
+          }
+          if (!keeper.custom_description && zombie.custom_description) {
+            mergePayload.custom_description = zombie.custom_description;
+            keeper.custom_description = zombie.custom_description;
+          }
+          if (!keeper.ai_description && zombie.ai_description) {
+            mergePayload.ai_description = zombie.ai_description;
+            keeper.ai_description = zombie.ai_description;
+          }
+          if (Object.keys(mergePayload).length > 0) {
+            await this.db
+              .update(services)
+              .set(mergePayload)
+              .where(eq(services.id, keeper.id));
+            console.log(`Merged metadata from zombie ${zombie.id} into keeper ${keeper.id} for "${container.name}"`);
+          }
+        }
+
         // Update the keeper with current container info
         await this.db
           .update(services)
@@ -89,12 +114,20 @@ export class DockerService {
           })
           .where(eq(services.id, keeper.id));
 
-        // Delete zombie duplicates
-        const zombieIds = duplicates.filter((d) => d.id !== keeper.id).map((d) => d.id);
-        for (const zombieId of zombieIds) {
-          // Delete zombie's pins
-          await this.db.delete(user_pins).where(eq(user_pins.service_id, zombieId));
-          await this.db.delete(services).where(eq(services.id, zombieId));
+        // Migrate pins from zombies to keeper, then delete zombies
+        for (const zombie of zombies) {
+          // Move pins to keeper (ignore conflicts)
+          const zombiePins = await this.db.select().from(user_pins).where(eq(user_pins.service_id, zombie.id));
+          for (const pin of zombiePins) {
+            const existingPin = await this.db.select().from(user_pins)
+              .where(and(eq(user_pins.user_id, pin.user_id), eq(user_pins.service_id, keeper.id)))
+              .limit(1);
+            if (existingPin.length === 0) {
+              await this.db.insert(user_pins).values({ user_id: pin.user_id, service_id: keeper.id });
+            }
+          }
+          await this.db.delete(user_pins).where(eq(user_pins.service_id, zombie.id));
+          await this.db.delete(services).where(eq(services.id, zombie.id));
         }
 
         if (zombieIds.length > 0) {
