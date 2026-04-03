@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   useQuery,
@@ -22,6 +22,7 @@ import {
   getAllServices,
   updateService,
   regenerateDescription,
+  toggleServiceVisibility,
 } from '../api/services'
 import type { Service } from '../api/services'
 import type { User } from '../api/users'
@@ -94,6 +95,7 @@ function DomainsTab() {
   const queryClient = useQueryClient()
   const [newSubdomain, setNewSubdomain] = useState('')
   const [newPort, setNewPort] = useState('')
+  const [domainSearch, setDomainSearch] = useState('')
   const [msg, setMsg] = useState<{ text: string; type: 'ok' | 'err' } | null>(null)
 
   const { data: domains, isLoading } = useQuery({
@@ -131,6 +133,17 @@ function DomainsTab() {
       setTimeout(() => setMsg(null), 3000)
     },
   })
+
+  const filteredDomains = useMemo(() => {
+    if (!domains) return []
+    const term = domainSearch.toLowerCase().trim()
+    if (!term) return domains
+    return domains.filter(
+      (d: DomainBinding) =>
+        d.subdomain.toLowerCase().includes(term) ||
+        String(d.port).includes(term)
+    )
+  }, [domains, domainSearch])
 
   const handleAdd = () => {
     const sub = newSubdomain.trim().toLowerCase()
@@ -197,19 +210,28 @@ function DomainsTab() {
 
       {/* Existing bindings */}
       <section className="bg-slate-800 rounded-xl border border-slate-700 p-6">
-        <h2 className="text-white font-semibold text-lg mb-4">
-          現有綁定
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-white font-semibold text-lg">現有綁定</h2>
+          <input
+            type="text"
+            placeholder="搜尋 Domain..."
+            value={domainSearch}
+            onChange={(e) => setDomainSearch(e.target.value)}
+            className="w-48 bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition text-sm"
+          />
+        </div>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-10">
             <div className="w-8 h-8 border-4 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
           </div>
-        ) : !domains || domains.length === 0 ? (
-          <p className="text-slate-500 text-center py-6">尚無 Domain 綁定</p>
+        ) : !filteredDomains || filteredDomains.length === 0 ? (
+          <p className="text-slate-500 text-center py-6">
+            {domainSearch ? '找不到符合條件的綁定' : '尚無 Domain 綁定'}
+          </p>
         ) : (
           <div className="space-y-2">
-            {domains.map((d: DomainBinding) => (
+            {filteredDomains.map((d: DomainBinding) => (
               <div
                 key={d.subdomain}
                 className="flex items-center justify-between bg-slate-700/50 rounded-lg px-4 py-3"
@@ -249,6 +271,7 @@ function ServicesTab() {
     queryFn: getAllServices,
   })
 
+  const [serviceSearch, setServiceSearch] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editDesc, setEditDesc] = useState('')
   const [editingDisplayNameId, setEditingDisplayNameId] = useState<number | null>(null)
@@ -282,6 +305,39 @@ function ServicesTab() {
     },
   })
 
+  const visibilityMutation = useMutation({
+    mutationFn: ({ id, is_hidden }: { id: number; is_hidden: boolean }) =>
+      toggleServiceVisibility(id, is_hidden),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-services'] })
+      queryClient.invalidateQueries({ queryKey: ['services'] })
+    },
+  })
+
+  const filteredServices = useMemo(() => {
+    if (!services) return []
+    const term = serviceSearch.toLowerCase().trim()
+    let list = services
+    if (term) {
+      list = services.filter(
+        (s: Service) =>
+          s.name.toLowerCase().includes(term) ||
+          (s.display_name && s.display_name.toLowerCase().includes(term)) ||
+          (s.domain && s.domain.toLowerCase().includes(term)) ||
+          (s.image && s.image.toLowerCase().includes(term))
+      )
+    }
+    // Sort: visible first, hidden last; within each group alphabetical
+    return [...list].sort((a, b) => {
+      const aHidden = a.is_hidden ? 1 : 0
+      const bHidden = b.is_hidden ? 1 : 0
+      if (aHidden !== bHidden) return aHidden - bHidden
+      const nameA = (a.display_name || a.name).toLowerCase()
+      const nameB = (b.display_name || b.name).toLowerCase()
+      return nameA.localeCompare(nameB)
+    })
+  }, [services, serviceSearch])
+
   const startEdit = (service: Service) => {
     setEditingId(service.id)
     setEditDesc(service.custom_description || '')
@@ -297,10 +353,23 @@ function ServicesTab() {
 
   return (
     <div className="space-y-3">
-      {services?.map((service: Service) => (
+      <div className="mb-3">
+        <input
+          type="text"
+          placeholder="搜尋服務..."
+          value={serviceSearch}
+          onChange={(e) => setServiceSearch(e.target.value)}
+          className="w-full max-w-sm bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition text-sm"
+        />
+      </div>
+      {filteredServices.map((service: Service) => (
         <div
           key={service.id}
-          className="bg-slate-800 rounded-xl border border-slate-700 p-4"
+          className={`bg-slate-800 rounded-xl border p-4 ${
+            service.is_hidden
+              ? 'border-slate-700/50 opacity-60'
+              : 'border-slate-700'
+          }`}
         >
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="flex-1 min-w-0">
@@ -315,12 +384,34 @@ function ServicesTab() {
                 <h3 className="text-white font-semibold truncate">
                   {service.name}
                 </h3>
+                {service.is_hidden && (
+                  <span className="text-xs text-yellow-500 bg-yellow-500/10 px-1.5 py-0.5 rounded">
+                    已隱藏
+                  </span>
+                )}
               </div>
               <p className="text-slate-500 text-xs mt-1">{service.image}</p>
               {service.domain && (
                 <p className="text-blue-400 text-xs mt-1">{service.domain}</p>
               )}
             </div>
+            <button
+              type="button"
+              onClick={() =>
+                visibilityMutation.mutate({
+                  id: service.id,
+                  is_hidden: !service.is_hidden,
+                })
+              }
+              disabled={visibilityMutation.isPending}
+              className={`text-xs px-3 py-1.5 rounded-lg border transition shrink-0 ${
+                service.is_hidden
+                  ? 'border-green-600 text-green-400 hover:bg-green-600/10'
+                  : 'border-slate-600 text-slate-400 hover:text-yellow-400 hover:border-yellow-600'
+              } disabled:opacity-40`}
+            >
+              {service.is_hidden ? '顯示' : '隱藏'}
+            </button>
           </div>
 
           {/* Display Name */}
@@ -434,8 +525,10 @@ function ServicesTab() {
         </div>
       ))}
 
-      {(!services || services.length === 0) && (
-        <p className="text-slate-500 text-center py-10">目前沒有服務</p>
+      {filteredServices.length === 0 && (
+        <p className="text-slate-500 text-center py-10">
+          {serviceSearch ? '找不到符合條件的服務' : '目前沒有服務'}
+        </p>
       )}
     </div>
   )
@@ -446,6 +539,7 @@ function ServicesTab() {
 function UsersTab() {
   const queryClient = useQueryClient()
   const currentUser = useAuthStore((state) => state.currentUser)
+  const [userSearch, setUserSearch] = useState('')
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['admin-users'],
@@ -459,6 +553,17 @@ function UsersTab() {
     },
   })
 
+  const filteredUsers = useMemo(() => {
+    if (!users) return []
+    const term = userSearch.toLowerCase().trim()
+    if (!term) return users
+    return users.filter(
+      (u: User) =>
+        u.username.toLowerCase().includes(term) ||
+        u.role.toLowerCase().includes(term)
+    )
+  }, [users, userSearch])
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -469,7 +574,16 @@ function UsersTab() {
 
   return (
     <div className="space-y-3">
-      {users?.map((user: User) => {
+      <div className="mb-3">
+        <input
+          type="text"
+          placeholder="搜尋使用者..."
+          value={userSearch}
+          onChange={(e) => setUserSearch(e.target.value)}
+          className="w-full max-w-sm bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition text-sm"
+        />
+      </div>
+      {filteredUsers.map((user: User) => {
         const isCurrentOrAdmin =
           user.id === currentUser?.id || user.role === 'admin'
 
@@ -519,8 +633,10 @@ function UsersTab() {
         )
       })}
 
-      {(!users || users.length === 0) && (
-        <p className="text-slate-500 text-center py-10">目前沒有使用者</p>
+      {filteredUsers.length === 0 && (
+        <p className="text-slate-500 text-center py-10">
+          {userSearch ? '找不到符合條件的使用者' : '目前沒有使用者'}
+        </p>
       )}
     </div>
   )
@@ -531,6 +647,7 @@ function UsersTab() {
 function SystemTab() {
   const queryClient = useQueryClient()
   const [keysInput, setKeysInput] = useState('')
+  const [keySearch, setKeySearch] = useState('')
   const [msg, setMsg] = useState<{ text: string; type: 'ok' | 'err' } | null>(null)
 
   const { data: apiKeys, isLoading: keysLoading } = useQuery({
@@ -570,6 +687,15 @@ function SystemTab() {
     addMutation.mutate(keysInput)
   }
 
+  const filteredKeys = useMemo(() => {
+    if (!apiKeys?.keys) return []
+    const term = keySearch.toLowerCase().trim()
+    if (!term) return apiKeys.keys
+    return apiKeys.keys.filter((k: ApiKeyInfo) =>
+      k.suffix.toLowerCase().includes(term)
+    )
+  }, [apiKeys, keySearch])
+
   const formatTokens = (n: number) => {
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
     if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
@@ -580,16 +706,25 @@ function SystemTab() {
     <div className="space-y-6">
       {/* API Key Pool */}
       <section className="bg-slate-800 rounded-xl border border-slate-700 p-6">
-        <h2 className="text-white font-semibold text-lg mb-4">
-          Gemini API Keys
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-white font-semibold text-lg">Gemini API Keys</h2>
+          {apiKeys?.keys && apiKeys.keys.length > 3 && (
+            <input
+              type="text"
+              placeholder="搜尋 Key..."
+              value={keySearch}
+              onChange={(e) => setKeySearch(e.target.value)}
+              className="w-40 bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition text-sm"
+            />
+          )}
+        </div>
 
         {/* Key list */}
         {keysLoading ? (
           <p className="text-slate-500 text-sm mb-4">載入中...</p>
-        ) : apiKeys?.keys && apiKeys.keys.length > 0 ? (
+        ) : filteredKeys.length > 0 ? (
           <div className="space-y-2 mb-4">
-            {apiKeys.keys.map((k: ApiKeyInfo) => (
+            {filteredKeys.map((k: ApiKeyInfo) => (
               <div
                 key={k.suffix}
                 className="flex items-center justify-between bg-slate-700/50 rounded-lg px-3 py-2"

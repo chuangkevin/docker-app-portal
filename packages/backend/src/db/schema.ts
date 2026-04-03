@@ -63,6 +63,13 @@ export const custom_links = sqliteTable('custom_links', {
   created_at: integer('created_at').default(sql`(unixepoch() * 1000)`).notNull(),
 });
 
+export const admin_service_overrides = sqliteTable('admin_service_overrides', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  service_id: integer('service_id').references(() => services.id).notNull(),
+  target_user_id: integer('target_user_id').references(() => users.id),
+  is_force_hidden: integer('is_force_hidden').default(1).notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Service = typeof services.$inferSelect;
@@ -70,3 +77,4 @@ export type UserPin = typeof user_pins.$inferSelect;
 export type RefreshToken = typeof refresh_tokens.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
 export type CustomLink = typeof custom_links.$inferSelect;
+export type AdminServiceOverride = typeof admin_service_overrides.$inferSelect;

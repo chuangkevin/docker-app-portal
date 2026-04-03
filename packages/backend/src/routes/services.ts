@@ -1,8 +1,8 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import type { DrizzleDb } from '../db/index';
-import { services, user_pins } from '../db/schema';
+import { services, user_pins, admin_service_overrides } from '../db/schema';
 import { GeminiService } from '../services/gemini';
 import type { CaddyfileService } from '../services/caddyfile';
 
@@ -55,9 +55,20 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: Caddy
         .where(eq(user_pins.user_id, userId));
       const pinnedServiceIds = new Set(pins.map((p) => p.service_id));
 
+      // Get globally hidden services
+      const overrides = await db
+        .select()
+        .from(admin_service_overrides)
+        .where(eq(admin_service_overrides.is_force_hidden, 1));
+      const hiddenServiceIds = new Set(
+        overrides
+          .filter((o) => o.target_user_id === null) // global overrides only
+          .map((o) => o.service_id)
+      );
+
       // Filter to only online services with a domain binding, deduplicate by domain
       const servicesWithDomain = allServices
-        .filter((s) => s.status === 'online')
+        .filter((s) => s.status === 'online' && !hiddenServiceIds.has(s.id))
         .map((s) => {
           const domain = getDomainForService(s.ports);
           if (!domain) return null;
@@ -106,6 +117,17 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: Caddy
     async (_request, reply) => {
       const allServices = await db.select().from(services);
 
+      // Get global hidden overrides
+      const overrides = await db
+        .select()
+        .from(admin_service_overrides)
+        .where(eq(admin_service_overrides.is_force_hidden, 1));
+      const hiddenServiceIds = new Set(
+        overrides
+          .filter((o) => o.target_user_id === null)
+          .map((o) => o.service_id)
+      );
+
       const result = allServices.map((s) => {
         const domain = getDomainForService(s.ports);
 
@@ -122,6 +144,7 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: Caddy
           description: s.custom_description || s.ai_description || null,
           last_seen_at: s.last_seen_at,
           domain,
+          is_hidden: hiddenServiceIds.has(s.id),
         };
       });
 
@@ -305,6 +328,52 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: Caddy
         id: final[0].id,
         ai_description: final[0].ai_description,
       });
+    },
+  );
+
+  // POST /api/services/:id/visibility - admin only, toggle global visibility
+  fastify.post<{ Params: { id: string }; Body: { is_hidden: boolean } }>(
+    '/api/services/:id/visibility',
+    { preHandler: [fastify.authenticate, fastify.adminOnly] },
+    async (request, reply) => {
+      const serviceId = parseInt(request.params.id, 10);
+      if (isNaN(serviceId)) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'Invalid service id' });
+      }
+
+      const svc = await db
+        .select()
+        .from(services)
+        .where(eq(services.id, serviceId))
+        .limit(1);
+
+      if (!svc.length) {
+        return reply.status(404).send({ error: 'Not Found', message: 'Service not found' });
+      }
+
+      const body = request.body as { is_hidden: boolean };
+      const shouldHide = body.is_hidden;
+
+      // Remove existing global override for this service
+      await db
+        .delete(admin_service_overrides)
+        .where(
+          and(
+            eq(admin_service_overrides.service_id, serviceId),
+            sql`target_user_id IS NULL`,
+          ),
+        );
+
+      // If hiding, insert a new override
+      if (shouldHide) {
+        await db.insert(admin_service_overrides).values({
+          service_id: serviceId,
+          target_user_id: null,
+          is_force_hidden: 1,
+        });
+      }
+
+      return reply.send({ success: true, is_hidden: shouldHide });
     },
   );
 };

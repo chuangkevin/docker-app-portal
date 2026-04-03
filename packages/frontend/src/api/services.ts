@@ -19,6 +19,7 @@ export interface Service {
   custom_description: string | null
   domain: string | null
   is_pinned: boolean
+  is_hidden?: boolean
 }
 
 export async function getServices(): Promise<Service[]> {
@@ -48,4 +49,11 @@ export async function updateService(
 
 export async function regenerateDescription(id: number): Promise<void> {
   await apiClient.post(`/services/${id}/regenerate-description`)
+}
+
+export async function toggleServiceVisibility(
+  id: number,
+  is_hidden: boolean
+): Promise<void> {
+  await apiClient.post(`/services/${id}/visibility`, { is_hidden })
 }
