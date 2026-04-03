@@ -55,28 +55,44 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: Caddy
         .where(eq(user_pins.user_id, userId));
       const pinnedServiceIds = new Set(pins.map((p) => p.service_id));
 
-      // Filter to only services with a domain binding
-      const result = allServices
+      // Filter to only services with a domain binding, deduplicate by domain
+      const servicesWithDomain = allServices
         .map((s) => {
           const domain = getDomainForService(s.ports);
           if (!domain) return null;
-
-          return {
-            id: s.id,
-            container_id: s.container_id,
-            name: s.name,
-            display_name: s.display_name,
-            image: s.image,
-            ports: JSON.parse(s.ports),
-            status: s.status,
-            description: s.custom_description || s.ai_description || null,
-            ai_description: s.ai_description,
-            custom_description: s.custom_description,
-            domain,
-            is_pinned: pinnedServiceIds.has(s.id),
-          };
+          return { ...s, domain };
         })
-        .filter(Boolean);
+        .filter(Boolean) as (typeof allServices[number] & { domain: string })[];
+
+      // Deduplicate: keep best record per domain (prefer online + display_name + custom_description)
+      const domainMap = new Map<string, typeof servicesWithDomain[number]>();
+      for (const s of servicesWithDomain) {
+        const existing = domainMap.get(s.domain);
+        if (!existing) {
+          domainMap.set(s.domain, s);
+          continue;
+        }
+        const scoreExisting = (existing.status === 'online' ? 10 : 0) + (existing.display_name ? 4 : 0) + (existing.custom_description ? 2 : 0) + (existing.ai_description ? 1 : 0);
+        const scoreNew = (s.status === 'online' ? 10 : 0) + (s.display_name ? 4 : 0) + (s.custom_description ? 2 : 0) + (s.ai_description ? 1 : 0);
+        if (scoreNew > scoreExisting) {
+          domainMap.set(s.domain, s);
+        }
+      }
+
+      const result = Array.from(domainMap.values()).map((s) => ({
+        id: s.id,
+        container_id: s.container_id,
+        name: s.name,
+        display_name: s.display_name,
+        image: s.image,
+        ports: JSON.parse(s.ports),
+        status: s.status,
+        description: s.custom_description || s.ai_description || null,
+        ai_description: s.ai_description,
+        custom_description: s.custom_description,
+        domain: s.domain,
+        is_pinned: pinnedServiceIds.has(s.id),
+      }));
 
       return reply.send(result);
     },
