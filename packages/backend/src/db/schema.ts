@@ -32,34 +32,10 @@ export const services = sqliteTable('services', {
   last_seen_at: integer('last_seen_at').notNull(),
 });
 
-export const pages = sqliteTable('pages', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  name: text('name').notNull(),
-  slug: text('slug').unique().notNull(),
-  order: integer('order').default(0).notNull(),
-  created_by: integer('created_by').references(() => users.id).notNull(),
-});
-
-export const service_page_assignments = sqliteTable('service_page_assignments', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  service_id: integer('service_id').references(() => services.id).notNull(),
-  page_id: integer('page_id').references(() => pages.id).notNull(),
-  order: integer('order').default(0).notNull(),
-});
-
-export const user_service_prefs = sqliteTable('user_service_prefs', {
+export const user_pins = sqliteTable('user_pins', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   user_id: integer('user_id').references(() => users.id).notNull(),
   service_id: integer('service_id').references(() => services.id).notNull(),
-  is_hidden: integer('is_hidden').default(0).notNull(),
-  preferred_port: integer('preferred_port'),
-});
-
-export const admin_service_overrides = sqliteTable('admin_service_overrides', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  service_id: integer('service_id').references(() => services.id).notNull(),
-  target_user_id: integer('target_user_id').references(() => users.id),
-  is_force_hidden: integer('is_force_hidden').default(1).notNull(),
 });
 
 export const refresh_tokens = sqliteTable('refresh_tokens', {
@@ -89,7 +65,7 @@ export const custom_links = sqliteTable('custom_links', {
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Service = typeof services.$inferSelect;
-export type Page = typeof pages.$inferSelect;
+export type UserPin = typeof user_pins.$inferSelect;
 export type RefreshToken = typeof refresh_tokens.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
 export type CustomLink = typeof custom_links.$inferSelect;

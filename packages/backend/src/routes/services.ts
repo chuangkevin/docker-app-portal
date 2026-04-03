@@ -1,216 +1,96 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { eq, and, isNull, inArray } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import type { DrizzleDb } from '../db/index';
-import {
-  services,
-  pages,
-  service_page_assignments,
-  user_service_prefs,
-  admin_service_overrides,
-} from '../db/schema';
+import { services, user_pins } from '../db/schema';
 import { GeminiService } from '../services/gemini';
-
-const prefsSchema = z.object({
-  is_hidden: z.union([z.literal(0), z.literal(1)]).optional(),
-  preferred_port: z.number().int().positive().nullable().optional(),
-});
+import type { CaddyfileService } from '../services/caddyfile';
 
 const updateServiceSchema = z.object({
   custom_description: z.string().nullable().optional(),
   display_name: z.string().nullable().optional(),
 });
 
-const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) => {
+const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: CaddyfileService }> = async (fastify, opts) => {
   const db = opts.db;
+  const caddyfileService = opts.caddyfileService;
   const geminiService = new GeminiService(db);
 
-  // GET /api/services - list visible services for current user
+  // Helper: get public ports from a service's port JSON
+  function getPublicPorts(portsJson: string): number[] {
+    try {
+      const ports = JSON.parse(portsJson);
+      if (!Array.isArray(ports)) return [];
+      return ports
+        .filter((p: { public: number }) => p.public > 0)
+        .map((p: { public: number }) => p.public);
+    } catch {
+      return [];
+    }
+  }
+
+  // Helper: find domain for a service based on its ports
+  function getDomainForService(portsJson: string): string | null {
+    const publicPorts = getPublicPorts(portsJson);
+    for (const port of publicPorts) {
+      const domain = caddyfileService.getDomainForPort(port);
+      if (domain) return domain;
+    }
+    return null;
+  }
+
+  // GET /api/services - list services that have domain bindings (for current user)
   fastify.get(
     '/api/services',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const userId = request.user.userId;
 
-      // 1. Get all services
       const allServices = await db.select().from(services);
 
-      // 2. Get admin overrides: global (target_user_id IS NULL) or for this user
-      const overrides = await db
+      // Get user pins
+      const pins = await db
         .select()
-        .from(admin_service_overrides);
+        .from(user_pins)
+        .where(eq(user_pins.user_id, userId));
+      const pinnedServiceIds = new Set(pins.map((p) => p.service_id));
 
-      const hiddenByOverride = new Set<number>();
-      for (const ov of overrides) {
-        if (ov.is_force_hidden === 1) {
-          if (ov.target_user_id === null || ov.target_user_id === userId) {
-            hiddenByOverride.add(ov.service_id);
-          }
-        }
-      }
+      // Filter to only services with a domain binding
+      const result = allServices
+        .map((s) => {
+          const domain = getDomainForService(s.ports);
+          if (!domain) return null;
 
-      // 3. Get user prefs
-      const prefs = await db
-        .select()
-        .from(user_service_prefs)
-        .where(eq(user_service_prefs.user_id, userId));
-
-      const hiddenByUser = new Set(
-        prefs.filter((p: { is_hidden: number }) => p.is_hidden === 1).map((p: { service_id: number }) => p.service_id),
-      );
-      const preferredPortMap = new Map<number, number | null>(
-        prefs.filter((p: { preferred_port: number | null }) => p.preferred_port != null).map((p: { service_id: number; preferred_port: number | null }) => [p.service_id, p.preferred_port]),
-      );
-
-      // 4. Filter services: exclude offline, admin-hidden, user-hidden, and services without public ports
-      const visibleServices = allServices.filter((s) => {
-        if (s.status === 'offline') return false;
-        if (hiddenByOverride.has(s.id) || hiddenByUser.has(s.id)) return false;
-        const ports = JSON.parse(s.ports);
-        return Array.isArray(ports) && ports.some((p: { public: number }) => p.public > 0);
-      });
-
-      // 5. Get page assignments for visible services
-      const serviceIds = visibleServices.map((s) => s.id);
-      let assignments: Array<{
-        service_id: number;
-        page_id: number;
-        order: number;
-      }> = [];
-      if (serviceIds.length > 0) {
-        assignments = await db
-          .select({
-            service_id: service_page_assignments.service_id,
-            page_id: service_page_assignments.page_id,
-            order: service_page_assignments.order,
-          })
-          .from(service_page_assignments)
-          .where(inArray(service_page_assignments.service_id, serviceIds));
-      }
-
-      const allPages = await db.select().from(pages);
-      const pageMap = new Map(allPages.map((p) => [p.id, p]));
-
-      // Build response
-      const result = visibleServices.map((s) => {
-        const serviceAssignments = assignments.filter(
-          (a) => a.service_id === s.id,
-        );
-        const servicePages = serviceAssignments
-          .map((a) => {
-            const page = pageMap.get(a.page_id);
-            return page ? { id: page.id, name: page.name, slug: page.slug } : null;
-          })
-          .filter(Boolean);
-
-        return {
-          id: s.id,
-          container_id: s.container_id,
-          name: s.name,
-          display_name: s.display_name,
-          image: s.image,
-          ports: JSON.parse(s.ports),
-          status: s.status,
-          description: s.custom_description || s.ai_description || null,
-          ai_description: s.ai_description,
-          custom_description: s.custom_description,
-          preferred_port: preferredPortMap.get(s.id) ?? null,
-          pages: servicePages,
-        };
-      });
+          return {
+            id: s.id,
+            container_id: s.container_id,
+            name: s.name,
+            display_name: s.display_name,
+            image: s.image,
+            ports: JSON.parse(s.ports),
+            status: s.status,
+            description: s.custom_description || s.ai_description || null,
+            ai_description: s.ai_description,
+            custom_description: s.custom_description,
+            domain,
+            is_pinned: pinnedServiceIds.has(s.id),
+          };
+        })
+        .filter(Boolean);
 
       return reply.send(result);
     },
   );
 
-  // GET /api/services/settings - all non-admin-hidden services with is_hidden flag for settings page
-  fastify.get(
-    '/api/services/settings',
-    { preHandler: [fastify.authenticate] },
-    async (request, reply) => {
-      const userId = request.user.userId;
-
-      // 1. Get all services
-      const allServices = await db.select().from(services);
-
-      // 2. Get admin overrides (force-hidden services are excluded entirely)
-      const overrides = await db.select().from(admin_service_overrides);
-      const hiddenByOverride = new Set<number>();
-      for (const ov of overrides) {
-        if (ov.is_force_hidden === 1) {
-          if (ov.target_user_id === null || ov.target_user_id === userId) {
-            hiddenByOverride.add(ov.service_id);
-          }
-        }
-      }
-
-      // 3. Get user prefs (to include is_hidden flag)
-      const prefs = await db
-        .select()
-        .from(user_service_prefs)
-        .where(eq(user_service_prefs.user_id, userId));
-
-      const hiddenByUser = new Set(
-        prefs.filter((p) => p.is_hidden === 1).map((p) => p.service_id),
-      );
-      const settingsPreferredPortMap = new Map<number, number | null>(
-        prefs.filter((p) => p.preferred_port != null).map((p) => [p.service_id, p.preferred_port]),
-      );
-
-      // 4. Return all services NOT hidden by admin, with is_hidden flag
-      const settingsServices = allServices
-        .filter((s) => !hiddenByOverride.has(s.id))
-        .map((s) => ({
-          id: s.id,
-          container_id: s.container_id,
-          name: s.name,
-          display_name: s.display_name,
-          image: s.image,
-          ports: JSON.parse(s.ports),
-          status: s.status,
-          description: s.custom_description || s.ai_description || null,
-          custom_description: s.custom_description,
-          ai_description: s.ai_description,
-          is_hidden: hiddenByUser.has(s.id) ? 1 : 0,
-          preferred_port: settingsPreferredPortMap.get(s.id) ?? null,
-        }));
-
-      return reply.send(settingsServices);
-    },
-  );
-
-  // GET /api/services/all - admin only, all services with full visibility info
+  // GET /api/services/all - admin only, returns ALL services with domain info
   fastify.get(
     '/api/services/all',
     { preHandler: [fastify.authenticate, fastify.adminOnly] },
     async (_request, reply) => {
       const allServices = await db.select().from(services);
 
-      const allAssignments = await db
-        .select()
-        .from(service_page_assignments);
-
-      const allPages = await db.select().from(pages);
-      const pageMap = new Map(allPages.map((p) => [p.id, p]));
-
-      const allOverrides = await db.select().from(admin_service_overrides);
-      const allPrefs = await db.select().from(user_service_prefs);
-
       const result = allServices.map((s) => {
-        const serviceAssignments = allAssignments.filter(
-          (a) => a.service_id === s.id,
-        );
-        const servicePages = serviceAssignments
-          .map((a) => {
-            const page = pageMap.get(a.page_id);
-            return page ? { id: page.id, name: page.name, slug: page.slug } : null;
-          })
-          .filter(Boolean);
-
-        const serviceOverrides = allOverrides.filter(
-          (o) => o.service_id === s.id,
-        );
-        const servicePrefs = allPrefs.filter((p) => p.service_id === s.id);
+        const domain = getDomainForService(s.ports);
 
         return {
           id: s.id,
@@ -224,9 +104,7 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
           custom_description: s.custom_description,
           description: s.custom_description || s.ai_description || null,
           last_seen_at: s.last_seen_at,
-          pages: servicePages,
-          overrides: serviceOverrides,
-          user_prefs: servicePrefs,
+          domain,
         };
       });
 
@@ -234,21 +112,14 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
     },
   );
 
-  // PATCH /api/services/:id/prefs - update user preference
-  fastify.patch<{ Params: { id: string } }>(
-    '/api/services/:id/prefs',
+  // POST /api/services/:id/pin - pin a service for current user
+  fastify.post<{ Params: { id: string } }>(
+    '/api/services/:id/pin',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const serviceId = parseInt(request.params.id, 10);
       if (isNaN(serviceId)) {
         return reply.status(400).send({ error: 'Bad Request', message: 'Invalid service id' });
-      }
-
-      let body: z.infer<typeof prefsSchema>;
-      try {
-        body = prefsSchema.parse(request.body);
-      } catch {
-        return reply.status(400).send({ error: 'Bad Request', message: 'Invalid prefs payload' });
       }
 
       const userId = request.user.userId;
@@ -264,38 +135,102 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
         return reply.status(404).send({ error: 'Not Found', message: 'Service not found' });
       }
 
-      // Build update payload from provided fields
-      const updatePayload: { is_hidden?: 0 | 1; preferred_port?: number | null } = {};
-      if (body.is_hidden !== undefined) updatePayload.is_hidden = body.is_hidden;
-      if (body.preferred_port !== undefined) updatePayload.preferred_port = body.preferred_port;
-
-      // Upsert user_service_prefs
+      // Check if already pinned
       const existing = await db
         .select()
-        .from(user_service_prefs)
+        .from(user_pins)
         .where(
           and(
-            eq(user_service_prefs.user_id, userId),
-            eq(user_service_prefs.service_id, serviceId),
+            eq(user_pins.user_id, userId),
+            eq(user_pins.service_id, serviceId),
           ),
         )
         .limit(1);
 
-      if (existing.length > 0) {
-        await db
-          .update(user_service_prefs)
-          .set(updatePayload)
-          .where(eq(user_service_prefs.id, existing[0].id));
-      } else {
-        await db.insert(user_service_prefs).values({
+      if (existing.length === 0) {
+        await db.insert(user_pins).values({
           user_id: userId,
           service_id: serviceId,
-          is_hidden: body.is_hidden ?? 0,
-          preferred_port: body.preferred_port ?? null,
         });
       }
 
       return reply.send({ success: true });
+    },
+  );
+
+  // DELETE /api/services/:id/pin - unpin a service for current user
+  fastify.delete<{ Params: { id: string } }>(
+    '/api/services/:id/pin',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const serviceId = parseInt(request.params.id, 10);
+      if (isNaN(serviceId)) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'Invalid service id' });
+      }
+
+      const userId = request.user.userId;
+
+      await db
+        .delete(user_pins)
+        .where(
+          and(
+            eq(user_pins.user_id, userId),
+            eq(user_pins.service_id, serviceId),
+          ),
+        );
+
+      return reply.send({ success: true });
+    },
+  );
+
+  // PATCH /api/services/:id - admin only, update display_name/custom_description
+  fastify.patch<{ Params: { id: string } }>(
+    '/api/services/:id',
+    { preHandler: [fastify.authenticate, fastify.adminOnly] },
+    async (request, reply) => {
+      const serviceId = parseInt(request.params.id, 10);
+      if (isNaN(serviceId)) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'Invalid service id' });
+      }
+
+      let body: z.infer<typeof updateServiceSchema>;
+      try {
+        body = updateServiceSchema.parse(request.body);
+      } catch {
+        return reply.status(400).send({ error: 'Bad Request', message: 'Invalid request body' });
+      }
+
+      const svc = await db
+        .select()
+        .from(services)
+        .where(eq(services.id, serviceId))
+        .limit(1);
+
+      if (!svc.length) {
+        return reply.status(404).send({ error: 'Not Found', message: 'Service not found' });
+      }
+
+      const updatePayload: { custom_description?: string | null; display_name?: string | null } = {};
+      if (body.custom_description !== undefined) {
+        updatePayload.custom_description = body.custom_description;
+      }
+      if (body.display_name !== undefined) {
+        updatePayload.display_name = body.display_name;
+      }
+      if (Object.keys(updatePayload).length > 0) {
+        await db
+          .update(services)
+          .set(updatePayload)
+          .where(eq(services.id, serviceId));
+      }
+
+      const updated = await db
+        .select()
+        .from(services)
+        .where(eq(services.id, serviceId))
+        .limit(1);
+
+      return reply.send(updated[0]);
     },
   );
 
@@ -353,57 +288,6 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opt
         id: final[0].id,
         ai_description: final[0].ai_description,
       });
-    },
-  );
-
-  // PATCH /api/services/:id - admin only, update custom_description
-  fastify.patch<{ Params: { id: string } }>(
-    '/api/services/:id',
-    { preHandler: [fastify.authenticate, fastify.adminOnly] },
-    async (request, reply) => {
-      const serviceId = parseInt(request.params.id, 10);
-      if (isNaN(serviceId)) {
-        return reply.status(400).send({ error: 'Bad Request', message: 'Invalid service id' });
-      }
-
-      let body: z.infer<typeof updateServiceSchema>;
-      try {
-        body = updateServiceSchema.parse(request.body);
-      } catch {
-        return reply.status(400).send({ error: 'Bad Request', message: 'Invalid request body' });
-      }
-
-      const svc = await db
-        .select()
-        .from(services)
-        .where(eq(services.id, serviceId))
-        .limit(1);
-
-      if (!svc.length) {
-        return reply.status(404).send({ error: 'Not Found', message: 'Service not found' });
-      }
-
-      const updatePayload: { custom_description?: string | null; display_name?: string | null } = {};
-      if (body.custom_description !== undefined) {
-        updatePayload.custom_description = body.custom_description;
-      }
-      if (body.display_name !== undefined) {
-        updatePayload.display_name = body.display_name;
-      }
-      if (Object.keys(updatePayload).length > 0) {
-        await db
-          .update(services)
-          .set(updatePayload)
-          .where(eq(services.id, serviceId));
-      }
-
-      const updated = await db
-        .select()
-        .from(services)
-        .where(eq(services.id, serviceId))
-        .limit(1);
-
-      return reply.send(updated[0]);
     },
   );
 };

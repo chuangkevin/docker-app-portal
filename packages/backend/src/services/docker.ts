@@ -1,7 +1,7 @@
 import Docker from 'dockerode';
-import { eq, lt, and, sql } from 'drizzle-orm';
+import { eq, lt, and } from 'drizzle-orm';
 import type { DrizzleDb } from '../db/index';
-import { services, service_page_assignments, user_service_prefs, admin_service_overrides } from '../db/schema';
+import { services, user_pins } from '../db/schema';
 import type { GeminiService } from './gemini';
 
 export interface ContainerInfo {
@@ -89,29 +89,11 @@ export class DockerService {
           })
           .where(eq(services.id, keeper.id));
 
-        // Delete zombie duplicates, migrating associations to the keeper
+        // Delete zombie duplicates
         const zombieIds = duplicates.filter((d) => d.id !== keeper.id).map((d) => d.id);
         for (const zombieId of zombieIds) {
-          // Migrate page assignments (skip if keeper already has them)
-          const zombieAssignments = await this.db.select().from(service_page_assignments)
-            .where(eq(service_page_assignments.service_id, zombieId));
-          const keeperAssignments = await this.db.select().from(service_page_assignments)
-            .where(eq(service_page_assignments.service_id, keeper.id));
-          const keeperPageIds = new Set(keeperAssignments.map((a) => a.page_id));
-          for (const assignment of zombieAssignments) {
-            if (!keeperPageIds.has(assignment.page_id)) {
-              await this.db.update(service_page_assignments)
-                .set({ service_id: keeper.id })
-                .where(eq(service_page_assignments.id, assignment.id));
-            } else {
-              await this.db.delete(service_page_assignments)
-                .where(eq(service_page_assignments.id, assignment.id));
-            }
-          }
-
-          // Delete zombie's prefs and overrides (keeper's own prefs take priority)
-          await this.db.delete(user_service_prefs).where(eq(user_service_prefs.service_id, zombieId));
-          await this.db.delete(admin_service_overrides).where(eq(admin_service_overrides.service_id, zombieId));
+          // Delete zombie's pins
+          await this.db.delete(user_pins).where(eq(user_pins.service_id, zombieId));
           await this.db.delete(services).where(eq(services.id, zombieId));
         }
 
@@ -135,9 +117,7 @@ export class DockerService {
       .where(and(eq(services.status, 'offline'), lt(services.last_seen_at, oneDayAgo)));
 
     for (const stale of staleServices) {
-      await this.db.delete(service_page_assignments).where(eq(service_page_assignments.service_id, stale.id));
-      await this.db.delete(user_service_prefs).where(eq(user_service_prefs.service_id, stale.id));
-      await this.db.delete(admin_service_overrides).where(eq(admin_service_overrides.service_id, stale.id));
+      await this.db.delete(user_pins).where(eq(user_pins.service_id, stale.id));
       await this.db.delete(services).where(eq(services.id, stale.id));
     }
 

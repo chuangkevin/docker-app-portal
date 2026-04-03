@@ -111,6 +111,14 @@ export async function runMigrations(db: DrizzleDb): Promise<void> {
   `);
 
   db.run(sql`
+    CREATE TABLE IF NOT EXISTS user_pins (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      service_id INTEGER NOT NULL REFERENCES services(id)
+    )
+  `);
+
+  db.run(sql`
     CREATE TABLE IF NOT EXISTS api_key_usage (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       api_key_suffix TEXT NOT NULL,

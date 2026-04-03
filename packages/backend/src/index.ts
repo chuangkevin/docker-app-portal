@@ -10,11 +10,12 @@ import healthRoute from './routes/health';
 import usersRoute from './routes/users';
 import authRoute from './routes/auth';
 import servicesRoute from './routes/services';
-import pagesRoute from './routes/pages';
+import domainsRoute from './routes/domains';
 import adminRoute from './routes/admin';
 import linksRoute from './routes/links';
 import { DockerService } from './services/docker';
 import { GeminiService } from './services/gemini';
+import { CaddyfileService } from './services/caddyfile';
 import { initGeminiKeys } from './services/geminiKeys';
 import path from 'path';
 import fs from 'fs';
@@ -22,6 +23,8 @@ import fs from 'fs';
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const DATABASE_PATH = process.env.DATABASE_PATH || './data/app.db';
+const CADDYFILE_PATH = process.env.CADDYFILE_PATH || '/app/caddyfile/Caddyfile';
+const CADDY_CONTAINER_NAME = process.env.CADDY_CONTAINER_NAME || 'caddy';
 
 async function buildServer() {
   const fastify = Fastify({
@@ -41,6 +44,9 @@ async function buildServer() {
   // Initialize Gemini key pool
   initGeminiKeys(db);
 
+  // Initialize Caddyfile service
+  const caddyfileService = new CaddyfileService(CADDYFILE_PATH, CADDY_CONTAINER_NAME);
+
   // Register plugins
   await fastify.register(fastifyCookie);
   await fastify.register(fastifyCors, {
@@ -54,8 +60,8 @@ async function buildServer() {
   await fastify.register(healthRoute);
   await fastify.register(usersRoute, { db });
   await fastify.register(authRoute, { db });
-  await fastify.register(servicesRoute, { db });
-  await fastify.register(pagesRoute, { db });
+  await fastify.register(servicesRoute, { db, caddyfileService });
+  await fastify.register(domainsRoute, { caddyfileService });
   await fastify.register(adminRoute, { db });
   await fastify.register(linksRoute, { db });
 

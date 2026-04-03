@@ -6,12 +6,6 @@ export interface ServicePort {
   type: string
 }
 
-export interface ServicePage {
-  id: number
-  name: string
-  slug: string
-}
-
 export interface Service {
   id: number
   container_id: string
@@ -23,18 +17,12 @@ export interface Service {
   description: string | null
   ai_description: string | null
   custom_description: string | null
-  preferred_port?: number | null
-  pages: ServicePage[]
-  is_hidden?: number
+  domain: string | null
+  is_pinned: boolean
 }
 
 export async function getServices(): Promise<Service[]> {
   const { data } = await apiClient.get<Service[]>('/services')
-  return data
-}
-
-export async function getServicesForSettings(): Promise<Service[]> {
-  const { data } = await apiClient.get<Service[]>('/services/settings')
   return data
 }
 
@@ -43,15 +31,12 @@ export async function getAllServices(): Promise<Service[]> {
   return data
 }
 
-export async function updateServicePrefs(
-  id: number,
-  prefs: { is_hidden?: 0 | 1; preferred_port?: number | null }
-): Promise<void> {
-  await apiClient.patch(`/services/${id}/prefs`, prefs)
+export async function pinService(id: number): Promise<void> {
+  await apiClient.post(`/services/${id}/pin`)
 }
 
-export async function regenerateDescription(id: number): Promise<void> {
-  await apiClient.post(`/services/${id}/regenerate-description`)
+export async function unpinService(id: number): Promise<void> {
+  await apiClient.delete(`/services/${id}/pin`)
 }
 
 export async function updateService(
@@ -59,4 +44,8 @@ export async function updateService(
   payload: { custom_description?: string | null; display_name?: string | null }
 ): Promise<void> {
   await apiClient.patch(`/services/${id}`, payload)
+}
+
+export async function regenerateDescription(id: number): Promise<void> {
+  await apiClient.post(`/services/${id}/regenerate-description`)
 }

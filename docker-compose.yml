@@ -12,9 +12,12 @@ services:
       - JWT_SECRET=docker-app-portal-jwt-secret
       - DATABASE_PATH=/data/app.db
       - PORT=3000
+      - CADDYFILE_PATH=/app/caddyfile/Caddyfile
+      - CADDY_CONTAINER_NAME=caddy
     volumes:
       - sqlite_data:/data
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /home/kevin/DockerCompose/caddy/Caddyfile:/app/caddyfile/Caddyfile
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
