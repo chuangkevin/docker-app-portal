@@ -156,6 +156,42 @@
 
 ---
 
+## 10.7 功能增強 v3 (2026-04-03)
+
+### 管理設定搜尋 + 服務隱藏
+- [x] 10.7.1 前端：管理設定四個 Tab（Domain/服務/使用者/系統）各加搜尋框
+- [x] 10.7.2 後端：`admin_service_overrides` 加入 drizzle schema + `POST /api/services/:id/visibility`（admin 全域隱藏切換）
+- [x] 10.7.3 後端：`GET /api/services` 過濾 admin 全域隱藏的服務
+- [x] 10.7.4 後端：`GET /api/services/all` 回傳 `is_hidden` 旗標
+- [x] 10.7.5 前端：ServicesTab 每個服務加隱藏/顯示按鈕，隱藏服務排序到最下方 + 「已隱藏」標籤 + 降低透明度
+
+### 首頁 Tab 切換 + Offline 服務顯示
+- [x] 10.7.6 前端：首頁三個 section（置頂/服務/書籤）改為 Tab 切換，每個 Tab 顯示計數 badge
+- [x] 10.7.7 後端：`GET /api/services` 不再過濾 offline 服務（改由前端灰色顯示）
+- [x] 10.7.8 前端：ServiceCard offline 服務降低透明度 + 紅色 status dot + 「offline」文字
+
+### 批次隱藏操作
+- [x] 10.7.9 前端：ServicesTab 加 checkbox 勾選 + 全選/取消全選按鈕
+- [x] 10.7.10 前端：選取後顯示批次操作 toolbar（批次隱藏/批次顯示/取消選取）
+
+### 個人設定隱藏服務
+- [x] 10.7.11 後端：`user_service_prefs` 加入 drizzle schema + `POST /api/services/:id/prefs`（使用者個人隱藏）
+- [x] 10.7.12 後端：`GET /api/services` 同時過濾 admin 隱藏 + 使用者個人隱藏
+- [x] 10.7.13 前端：個人設定頁新增「隱藏服務」區塊，可搜尋並隱藏不常用的服務
+
+### Domain 管理對應服務
+- [x] 10.7.14 後端：`GET /api/domains` 回傳 `service_name`（查詢 services 表 port 對應的容器名）
+- [x] 10.7.15 前端：Domain 列表每個綁定顯示對應的服務名稱 badge
+
+### 技術債清理
+- [x] 10.7.16 後端：visibility endpoint 用 drizzle `isNull()` 取代 raw SQL template
+- [x] 10.7.17 前端：AdminPage 拆分為 4 個獨立 component（DomainsTab/ServicesTab/UsersTab/SystemTab）
+- [x] 10.7.18 後端：修正 docker.ts `zombieIds` → `zombies` 變數名 typo
+
+### ⏸️ CHECKPOINT D3 — 功能增強 v3 ✅ 已完成，已部署
+
+---
+
 ## 11. CI/CD — GitHub Actions（參考 ebook-reader 模式）
 
 - [x] 11.1 建立 `packages/frontend/Dockerfile`（multi-stage：build → nginx）

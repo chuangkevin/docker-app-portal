@@ -1,6 +1,6 @@
-## ADDED Requirements
+## ADDED Requirements (✅ 全部已實作 — 2026-04-03)
 
-### Requirement: 個人服務可見性偏好
+### Requirement: 個人服務可見性偏好 ✅
 使用者 SHALL 能夠設定特定服務對自己隱藏，隱藏後該服務不出現在自己的 Landing Page。
 
 #### Scenario: 使用者隱藏服務
@@ -17,7 +17,7 @@
 
 ---
 
-### Requirement: Admin 強制隱藏服務
+### Requirement: Admin 強制隱藏服務 ✅
 Admin SHALL 能夠強制隱藏特定服務，使一般使用者無法看到該服務，且無法自行解除。
 
 #### Scenario: Admin 強制隱藏（針對全部使用者）
