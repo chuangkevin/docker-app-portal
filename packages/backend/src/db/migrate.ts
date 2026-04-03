@@ -118,6 +118,13 @@ export async function runMigrations(db: DrizzleDb): Promise<void> {
     )
   `);
 
+  // Add is_pinned column to custom_links if it doesn't exist
+  try {
+    db.run(sql`ALTER TABLE custom_links ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    // Column already exists, ignore
+  }
+
   db.run(sql`
     CREATE TABLE IF NOT EXISTS api_key_usage (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

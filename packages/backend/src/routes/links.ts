@@ -18,6 +18,7 @@ const updateLinkSchema = z.object({
   description: z.string().max(500).nullable().optional(),
   icon_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   order: z.number().int().min(0).optional(),
+  is_pinned: z.union([z.literal(0), z.literal(1)]).optional(),
 });
 
 const linksRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) => {
@@ -118,6 +119,7 @@ const linksRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) 
       if (body.description !== undefined) updatePayload.description = body.description;
       if (body.icon_color !== undefined) updatePayload.icon_color = body.icon_color;
       if (body.order !== undefined) updatePayload.order = body.order;
+      if (body.is_pinned !== undefined) updatePayload.is_pinned = body.is_pinned;
 
       if (Object.keys(updatePayload).length > 0) {
         await db

@@ -8,6 +8,7 @@ export interface CustomLink {
   icon_color: string
   created_by: number
   is_global: number
+  is_pinned: number
   order: number
   created_at: number
 }
@@ -36,6 +37,7 @@ export async function updateLink(
     description?: string | null
     icon_color?: string
     order?: number
+    is_pinned?: 0 | 1
   }
 ): Promise<CustomLink> {
   const { data } = await apiClient.patch<CustomLink>(`/links/${id}`, payload)

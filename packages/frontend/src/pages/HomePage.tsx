@@ -67,6 +67,18 @@ const HomePage: React.FC = () => {
     [filteredServices]
   )
 
+  // Pinned links
+  const pinnedLinks = useMemo(
+    () => filteredLinks.filter((l) => l.is_pinned),
+    [filteredLinks]
+  )
+
+  // Non-pinned links
+  const unpinnedLinks = useMemo(
+    () => filteredLinks.filter((l) => !l.is_pinned),
+    [filteredLinks]
+  )
+
   // All services sorted alphabetically
   const sortedServices = useMemo(
     () =>
@@ -146,8 +158,8 @@ const HomePage: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Pinned Services */}
-            {pinnedServices.length > 0 && (
+            {/* Pinned Items (Services + Links) */}
+            {(pinnedServices.length > 0 || pinnedLinks.length > 0) && (
               <section>
                 <h2 className="text-white text-lg font-semibold mb-4 flex items-center gap-2">
                   <svg
@@ -160,11 +172,14 @@ const HomePage: React.FC = () => {
                   >
                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                   </svg>
-                  置頂服務
+                  置頂
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {pinnedServices.map((service: Service) => (
                     <ServiceCard key={`pin-${service.id}`} service={service} />
+                  ))}
+                  {pinnedLinks.map((link: CustomLink) => (
+                    <LinkCard key={`pin-link-${link.id}`} link={link} />
                   ))}
                 </div>
               </section>
@@ -200,8 +215,8 @@ const HomePage: React.FC = () => {
               </section>
             )}
 
-            {/* Bookmarks */}
-            {filteredLinks.length > 0 && (
+            {/* Bookmarks (non-pinned) */}
+            {unpinnedLinks.length > 0 && (
               <section>
                 <h2 className="text-white text-lg font-semibold mb-4 flex items-center gap-2">
                   <svg
@@ -221,7 +236,7 @@ const HomePage: React.FC = () => {
                   我的書籤
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {filteredLinks.map((link: CustomLink) => (
+                  {unpinnedLinks.map((link: CustomLink) => (
                     <LinkCard key={`link-${link.id}`} link={link} />
                   ))}
                 </div>

@@ -58,6 +58,7 @@ export const custom_links = sqliteTable('custom_links', {
   icon_color: text('icon_color').default('#4ECDC4').notNull(),
   created_by: integer('created_by').references(() => users.id).notNull(),
   is_global: integer('is_global').default(0).notNull(), // 1 = admin 建立，所有人可見
+  is_pinned: integer('is_pinned').default(0).notNull(),
   order: integer('order').default(0).notNull(),
   created_at: integer('created_at').default(sql`(unixepoch() * 1000)`).notNull(),
 });

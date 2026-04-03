@@ -1,4 +1,6 @@
 import React from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { updateLink } from '../api/links'
 import type { CustomLink } from '../api/links'
 
 interface LinkCardProps {
@@ -6,6 +8,16 @@ interface LinkCardProps {
 }
 
 const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
+  const queryClient = useQueryClient()
+
+  const pinMutation = useMutation({
+    mutationFn: () =>
+      updateLink(link.id, { is_pinned: link.is_pinned ? 0 : 1 }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['links'] })
+    },
+  })
+
   const handleOpen = () => {
     window.open(link.url, '_blank')
   }
@@ -21,23 +33,45 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
   return (
     <div className="bg-slate-800 rounded-xl p-4 flex flex-col gap-3 border border-slate-700 hover:border-slate-500 transition">
       <div className="flex items-start justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => pinMutation.mutate()}
+          disabled={pinMutation.isPending}
+          className="mt-0.5 shrink-0 transition"
+          title={link.is_pinned ? '取消置頂' : '置頂'}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill={link.is_pinned ? 'currentColor' : 'none'}
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={link.is_pinned ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-400'}
+          >
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+        </button>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-white font-bold text-lg truncate">{link.name}</h3>
+          <a
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 hover:text-blue-300 text-sm truncate block transition"
+          >
+            {hostname}
+          </a>
+        </div>
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white font-bold text-sm"
           style={{ backgroundColor: link.icon_color }}
         >
           {link.name.charAt(0).toUpperCase()}
         </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-white font-bold text-lg truncate">{link.name}</h3>
-          <p className="text-slate-500 text-xs truncate">{hostname}</p>
-        </div>
-        <span className="flex items-center gap-1.5 text-xs font-medium shrink-0 text-blue-400">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-          </svg>
-          自訂
-        </span>
       </div>
 
       <p className="text-slate-400 text-sm line-clamp-2 flex-1">
