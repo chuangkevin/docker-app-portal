@@ -130,8 +130,8 @@ export class DockerService {
           await this.db.delete(services).where(eq(services.id, zombie.id));
         }
 
-        if (zombieIds.length > 0) {
-          console.log(`Merged ${zombieIds.length} duplicate(s) for service "${container.name}"`);
+        if (zombies.length > 0) {
+          console.log(`Merged ${zombies.length} duplicate(s) for service "${container.name}"`);
         }
       }
     }
