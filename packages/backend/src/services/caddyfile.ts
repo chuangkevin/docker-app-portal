@@ -29,16 +29,31 @@ export class CaddyfileService {
 
     // Match HTTPS handler blocks: @name host name.sisihome.org ... reverse_proxy localhost:PORT
     const handlerRegex = /@(\w+)\s+host\s+(\w+)\.sisihome\.org/g;
-    const proxyRegex = /handle\s+@(\w+)\s*\{[^}]*reverse_proxy\s+localhost:(\d+)[^}]*\}/g;
 
-    // Build a map of handler name -> port from handle blocks
+    // Build a map of handler name -> port by finding handle blocks with brace counting
+    // to support nested braces like: reverse_proxy localhost:8823 { flush_interval -1 }
     const portMap = new Map<string, number>();
-    let match: RegExpExecArray | null;
-    while ((match = proxyRegex.exec(content)) !== null) {
-      portMap.set(match[1], parseInt(match[2], 10));
+    const handleStartRegex = /handle\s+@(\w+)\s*\{/g;
+    let startMatch: RegExpExecArray | null;
+    while ((startMatch = handleStartRegex.exec(content)) !== null) {
+      const handlerName = startMatch[1];
+      let depth = 1;
+      let i = handleStartRegex.lastIndex;
+      const blockStart = i;
+      while (i < content.length && depth > 0) {
+        if (content[i] === '{') depth++;
+        else if (content[i] === '}') depth--;
+        i++;
+      }
+      const blockContent = content.slice(blockStart, i - 1);
+      const proxyMatch = blockContent.match(/reverse_proxy\s+localhost:(\d+)/);
+      if (proxyMatch) {
+        portMap.set(handlerName, parseInt(proxyMatch[1], 10));
+      }
     }
 
     // Now match host declarations and pair with ports
+    let match: RegExpExecArray | null;
     while ((match = handlerRegex.exec(content)) !== null) {
       const handlerName = match[1];
       const subdomain = match[2];

@@ -17,7 +17,7 @@ services:
     volumes:
       - sqlite_data:/data
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /home/kevin/DockerCompose/caddy/Caddyfile:/app/caddyfile/Caddyfile
+      - /home/kevin/DockerCompose/caddy:/app/caddyfile:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
