@@ -1,8 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../stores/authStore'
 import { getLinks, createLink, updateLink, deleteLink } from '../api/links'
+import { getServices, setUserServicePref } from '../api/services'
+import type { Service } from '../api/services'
 import type { CustomLink } from '../api/links'
 
 const SettingsPage: React.FC = () => {
@@ -30,7 +32,15 @@ const SettingsPage: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-6">
+      <main className="max-w-3xl mx-auto px-4 py-6 space-y-8">
+        <section>
+          <h2 className="text-white text-lg font-semibold mb-1">隱藏服務</h2>
+          <p className="text-slate-400 text-sm mb-4">
+            隱藏不常用的服務，不影響其他使用者
+          </p>
+          <HideServicesSection />
+        </section>
+
         <section>
           <h2 className="text-white text-lg font-semibold mb-1">我的書籤</h2>
           <p className="text-slate-400 text-sm mb-4">
@@ -39,6 +49,107 @@ const SettingsPage: React.FC = () => {
           <BookmarkManagementSection />
         </section>
       </main>
+    </div>
+  )
+}
+
+// ======================== Hide Services Section ========================
+
+function HideServicesSection() {
+  const queryClient = useQueryClient()
+  const [hideSearch, setHideSearch] = useState('')
+
+  // We fetch ALL services (including hidden ones) from the services/all endpoint
+  // But since that's admin-only, we use the regular endpoint + show a note
+  // Actually, we need a way to get hidden services too. Let's use getAllServices for admin,
+  // or show only currently visible ones with a toggle.
+  // Simplest: show all visible services with a "hide" button.
+  const { data: services, isLoading } = useQuery({
+    queryKey: ['services'],
+    queryFn: getServices,
+  })
+
+  const hideMutation = useMutation({
+    mutationFn: ({ id, is_hidden }: { id: number; is_hidden: boolean }) =>
+      setUserServicePref(id, is_hidden),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['services'] })
+    },
+  })
+
+  const filteredServices = useMemo(() => {
+    if (!services) return []
+    const term = hideSearch.toLowerCase().trim()
+    if (!term) return services
+    return services.filter(
+      (s: Service) =>
+        s.name.toLowerCase().includes(term) ||
+        (s.display_name && s.display_name.toLowerCase().includes(term)) ||
+        (s.domain && s.domain.toLowerCase().includes(term))
+    )
+  }, [services, hideSearch])
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        <div className="w-8 h-8 border-4 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {services && services.length > 3 && (
+        <input
+          type="text"
+          placeholder="搜尋服務..."
+          value={hideSearch}
+          onChange={(e) => setHideSearch(e.target.value)}
+          className="w-full max-w-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-sm"
+        />
+      )}
+      {filteredServices && filteredServices.length > 0 ? (
+        <div className="space-y-2">
+          {filteredServices.map((s: Service) => (
+            <div
+              key={s.id}
+              className="flex items-center justify-between bg-slate-800 rounded-lg border border-slate-700 px-4 py-3"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <span
+                  className={`w-2 h-2 rounded-full shrink-0 ${
+                    s.status === 'online' ? 'bg-green-400' : 'bg-red-400'
+                  }`}
+                />
+                <div className="min-w-0">
+                  <p className="text-white font-medium text-sm truncate">
+                    {s.display_name || s.name}
+                  </p>
+                  {s.domain && (
+                    <p className="text-slate-500 text-xs truncate">
+                      {s.domain}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  hideMutation.mutate({ id: s.id, is_hidden: true })
+                }
+                disabled={hideMutation.isPending}
+                className="text-xs text-slate-400 hover:text-yellow-400 border border-slate-600 hover:border-yellow-600 rounded-lg px-3 py-1.5 transition disabled:opacity-40 shrink-0"
+              >
+                隱藏
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-slate-500 text-center py-6">
+          {hideSearch ? '找不到符合條件的服務' : '目前沒有可隱藏的服務'}
+        </p>
+      )}
     </div>
   )
 }

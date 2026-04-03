@@ -61,7 +61,7 @@ async function buildServer() {
   await fastify.register(usersRoute, { db });
   await fastify.register(authRoute, { db });
   await fastify.register(servicesRoute, { db, caddyfileService });
-  await fastify.register(domainsRoute, { caddyfileService });
+  await fastify.register(domainsRoute, { caddyfileService, db });
   await fastify.register(adminRoute, { db });
   await fastify.register(linksRoute, { db });
 

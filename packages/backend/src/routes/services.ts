@@ -1,8 +1,8 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import type { DrizzleDb } from '../db/index';
-import { services, user_pins, admin_service_overrides } from '../db/schema';
+import { services, user_pins, admin_service_overrides, user_service_prefs } from '../db/schema';
 import { GeminiService } from '../services/gemini';
 import type { CaddyfileService } from '../services/caddyfile';
 
@@ -66,9 +66,21 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: Caddy
           .map((o) => o.service_id)
       );
 
-      // Filter to only online services with a domain binding, deduplicate by domain
+      // Get user-hidden services
+      const userPrefs = await db
+        .select()
+        .from(user_service_prefs)
+        .where(
+          and(
+            eq(user_service_prefs.user_id, userId),
+            eq(user_service_prefs.is_hidden, 1),
+          ),
+        );
+      const userHiddenServiceIds = new Set(userPrefs.map((p) => p.service_id));
+
+      // Filter out admin-hidden and user-hidden services, include both online and offline
       const servicesWithDomain = allServices
-        .filter((s) => s.status === 'online' && !hiddenServiceIds.has(s.id))
+        .filter((s) => !hiddenServiceIds.has(s.id) && !userHiddenServiceIds.has(s.id))
         .map((s) => {
           const domain = getDomainForService(s.ports);
           if (!domain) return null;
@@ -223,6 +235,65 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: Caddy
     },
   );
 
+  // POST /api/services/:id/prefs - set user preference (is_hidden)
+  fastify.post<{ Params: { id: string } }>(
+    '/api/services/:id/prefs',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const serviceId = parseInt(request.params.id, 10);
+      if (isNaN(serviceId)) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'Invalid service id' });
+      }
+
+      const userId = request.user.userId;
+      const body = request.body as { is_hidden?: boolean };
+
+      if (body.is_hidden === undefined || typeof body.is_hidden !== 'boolean') {
+        return reply.status(400).send({ error: 'Bad Request', message: 'is_hidden (boolean) is required' });
+      }
+
+      // Check service exists
+      const svc = await db
+        .select()
+        .from(services)
+        .where(eq(services.id, serviceId))
+        .limit(1);
+
+      if (!svc.length) {
+        return reply.status(404).send({ error: 'Not Found', message: 'Service not found' });
+      }
+
+      const isHiddenInt = body.is_hidden ? 1 : 0;
+
+      // Upsert: check if pref exists
+      const existing = await db
+        .select()
+        .from(user_service_prefs)
+        .where(
+          and(
+            eq(user_service_prefs.user_id, userId),
+            eq(user_service_prefs.service_id, serviceId),
+          ),
+        )
+        .limit(1);
+
+      if (existing.length > 0) {
+        await db
+          .update(user_service_prefs)
+          .set({ is_hidden: isHiddenInt })
+          .where(eq(user_service_prefs.id, existing[0].id));
+      } else {
+        await db.insert(user_service_prefs).values({
+          user_id: userId,
+          service_id: serviceId,
+          is_hidden: isHiddenInt,
+        });
+      }
+
+      return reply.send({ success: true, is_hidden: body.is_hidden });
+    },
+  );
+
   // PATCH /api/services/:id - admin only, update display_name/custom_description
   fastify.patch<{ Params: { id: string } }>(
     '/api/services/:id',
@@ -360,7 +431,7 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: Caddy
         .where(
           and(
             eq(admin_service_overrides.service_id, serviceId),
-            sql`target_user_id IS NULL`,
+            isNull(admin_service_overrides.target_user_id),
           ),
         );
 

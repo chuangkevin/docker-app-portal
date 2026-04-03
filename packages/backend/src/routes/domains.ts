@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import type { DrizzleDb } from '../db/index';
+import { services } from '../db/schema';
 import type { CaddyfileService } from '../services/caddyfile';
 
 const addDomainSchema = z.object({
@@ -11,8 +13,9 @@ const updateDomainSchema = z.object({
   port: z.number().int().min(1).max(65535),
 });
 
-const domainsRoute: FastifyPluginAsync<{ caddyfileService: CaddyfileService }> = async (fastify, opts) => {
+const domainsRoute: FastifyPluginAsync<{ caddyfileService: CaddyfileService; db: DrizzleDb }> = async (fastify, opts) => {
   const caddyfileService = opts.caddyfileService;
+  const db = opts.db;
 
   // GET /api/domains - list all domain bindings
   fastify.get(
@@ -21,7 +24,33 @@ const domainsRoute: FastifyPluginAsync<{ caddyfileService: CaddyfileService }> =
     async (_request, reply) => {
       try {
         const bindings = caddyfileService.parseBindings();
-        return reply.send(bindings);
+
+        // Look up service names for each binding's port
+        const allServices = await db.select().from(services);
+
+        // Build a port -> service name map
+        const portToService = new Map<number, string>();
+        for (const svc of allServices) {
+          try {
+            const ports = JSON.parse(svc.ports);
+            if (Array.isArray(ports)) {
+              for (const p of ports) {
+                if (p.public > 0) {
+                  portToService.set(p.public, svc.display_name || svc.name);
+                }
+              }
+            }
+          } catch {
+            // skip malformed ports
+          }
+        }
+
+        const result = bindings.map((b) => ({
+          ...b,
+          service_name: portToService.get(b.port) || null,
+        }));
+
+        return reply.send(result);
       } catch (err) {
         return reply.status(500).send({ error: 'Internal Server Error', message: 'Failed to parse Caddyfile' });
       }

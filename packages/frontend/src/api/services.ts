@@ -57,3 +57,10 @@ export async function toggleServiceVisibility(
 ): Promise<void> {
   await apiClient.post(`/services/${id}/visibility`, { is_hidden })
 }
+
+export async function setUserServicePref(
+  id: number,
+  is_hidden: boolean
+): Promise<void> {
+  await apiClient.post(`/services/${id}/prefs`, { is_hidden })
+}

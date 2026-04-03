@@ -63,6 +63,7 @@ export async function getTokenUsage(): Promise<TokenUsageStats> {
 export interface DomainBinding {
   subdomain: string
   port: number
+  service_name?: string | null
 }
 
 export async function getDomains(): Promise<DomainBinding[]> {

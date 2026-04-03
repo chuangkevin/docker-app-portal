@@ -70,6 +70,14 @@ export const admin_service_overrides = sqliteTable('admin_service_overrides', {
   is_force_hidden: integer('is_force_hidden').default(1).notNull(),
 });
 
+export const user_service_prefs = sqliteTable('user_service_prefs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  user_id: integer('user_id').references(() => users.id).notNull(),
+  service_id: integer('service_id').references(() => services.id).notNull(),
+  is_hidden: integer('is_hidden').default(0).notNull(),
+  preferred_port: integer('preferred_port'),
+});
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Service = typeof services.$inferSelect;
@@ -78,3 +86,4 @@ export type RefreshToken = typeof refresh_tokens.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
 export type CustomLink = typeof custom_links.$inferSelect;
 export type AdminServiceOverride = typeof admin_service_overrides.$inferSelect;
+export type UserServicePref = typeof user_service_prefs.$inferSelect;

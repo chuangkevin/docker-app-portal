@@ -9,12 +9,15 @@ import LinkCard from '../components/LinkCard'
 import type { Service } from '../api/services'
 import type { CustomLink } from '../api/links'
 
+type HomeTab = 'pinned' | 'services' | 'bookmarks'
+
 const HomePage: React.FC = () => {
   const navigate = useNavigate()
   const currentUser = useAuthStore((state) => state.currentUser)
   const clearAuth = useAuthStore((state) => state.clearAuth)
 
   const [search, setSearch] = useState('')
+  const [activeTab, setActiveTab] = useState<HomeTab>('pinned')
 
   const { data: services, isLoading: servicesLoading } = useQuery({
     queryKey: ['services'],
@@ -79,10 +82,14 @@ const HomePage: React.FC = () => {
     [filteredLinks]
   )
 
-  // All services sorted alphabetically
+  // All services sorted: online first, then alphabetical
   const sortedServices = useMemo(
     () =>
       [...filteredServices].sort((a, b) => {
+        // online first
+        if (a.status !== b.status) {
+          return a.status === 'online' ? -1 : 1
+        }
         const nameA = (a.display_name || a.name).toLowerCase()
         const nameB = (b.display_name || b.name).toLowerCase()
         return nameA.localeCompare(nameB)
@@ -90,8 +97,14 @@ const HomePage: React.FC = () => {
     [filteredServices]
   )
 
-  const hasNothingToShow =
-    sortedServices.length === 0 && filteredLinks.length === 0
+  const pinnedCount = pinnedServices.length + pinnedLinks.length
+  const bookmarkCount = unpinnedLinks.length
+
+  const tabs: { key: HomeTab; label: string; count: number }[] = [
+    { key: 'pinned', label: '置頂', count: pinnedCount },
+    { key: 'services', label: '所有服務', count: sortedServices.length },
+    { key: 'bookmarks', label: '我的書籤', count: bookmarkCount },
+  ]
 
   return (
     <div className="min-h-screen bg-slate-900">
@@ -136,7 +149,7 @@ const HomePage: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         {/* Search */}
-        <div className="mb-6">
+        <div className="mb-4">
           <input
             type="text"
             placeholder="搜尋服務或書籤..."
@@ -146,34 +159,42 @@ const HomePage: React.FC = () => {
           />
         </div>
 
+        {/* Tabs */}
+        <div className="flex gap-1 mb-6 overflow-x-auto pb-2">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition flex items-center gap-2 ${
+                activeTab === tab.key
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+              }`}
+            >
+              {tab.label}
+              <span
+                className={`text-xs px-1.5 py-0.5 rounded-full ${
+                  activeTab === tab.key
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-slate-700 text-slate-500'
+                }`}
+              >
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
         {servicesLoading ? (
           <div className="flex items-center justify-center py-20">
             <div className="w-10 h-10 border-4 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
           </div>
-        ) : hasNothingToShow ? (
-          <div className="text-center py-20">
-            <p className="text-slate-500 text-lg">
-              {search ? '找不到符合條件的服務或書籤' : '目前沒有可顯示的服務'}
-            </p>
-          </div>
         ) : (
-          <div className="space-y-8">
-            {/* Pinned Items (Services + Links) */}
-            {(pinnedServices.length > 0 || pinnedLinks.length > 0) && (
-              <section>
-                <h2 className="text-white text-lg font-semibold mb-4 flex items-center gap-2">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    className="text-yellow-400"
-                  >
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                  </svg>
-                  置頂
-                </h2>
+          <>
+            {/* Pinned Tab */}
+            {activeTab === 'pinned' && (
+              pinnedCount > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {pinnedServices.map((service: Service) => (
                     <ServiceCard key={`pin-${service.id}`} service={service} />
@@ -182,67 +203,49 @@ const HomePage: React.FC = () => {
                     <LinkCard key={`pin-link-${link.id}`} link={link} />
                   ))}
                 </div>
-              </section>
+              ) : (
+                <div className="text-center py-20">
+                  <p className="text-slate-500 text-lg">
+                    {search ? '找不到符合條件的置頂項目' : '尚無置頂項目，點擊服務卡片上的星號來置頂'}
+                  </p>
+                </div>
+              )
             )}
 
-            {/* All Services */}
-            {sortedServices.length > 0 && (
-              <section>
-                <h2 className="text-white text-lg font-semibold mb-4 flex items-center gap-2">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-blue-400"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="2" y1="12" x2="22" y2="12" />
-                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                  </svg>
-                  所有服務
-                </h2>
+            {/* Services Tab */}
+            {activeTab === 'services' && (
+              sortedServices.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {sortedServices.map((service: Service) => (
                     <ServiceCard key={`svc-${service.id}`} service={service} />
                   ))}
                 </div>
-              </section>
+              ) : (
+                <div className="text-center py-20">
+                  <p className="text-slate-500 text-lg">
+                    {search ? '找不到符合條件的服務' : '目前沒有可顯示的服務'}
+                  </p>
+                </div>
+              )
             )}
 
-            {/* Bookmarks (non-pinned) */}
-            {unpinnedLinks.length > 0 && (
-              <section>
-                <h2 className="text-white text-lg font-semibold mb-4 flex items-center gap-2">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-green-400"
-                  >
-                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-                  </svg>
-                  我的書籤
-                </h2>
+            {/* Bookmarks Tab */}
+            {activeTab === 'bookmarks' && (
+              unpinnedLinks.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {unpinnedLinks.map((link: CustomLink) => (
                     <LinkCard key={`link-${link.id}`} link={link} />
                   ))}
                 </div>
-              </section>
+              ) : (
+                <div className="text-center py-20">
+                  <p className="text-slate-500 text-lg">
+                    {search ? '找不到符合條件的書籤' : '尚無書籤，到個人設定頁新增'}
+                  </p>
+                </div>
+              )
             )}
-          </div>
+          </>
         )}
       </main>
     </div>
