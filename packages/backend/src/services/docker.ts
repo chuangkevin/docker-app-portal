@@ -1,5 +1,5 @@
 import Docker from 'dockerode';
-import { eq, lt, and } from 'drizzle-orm';
+import { eq, lt, and, sql } from 'drizzle-orm';
 import type { DrizzleDb } from '../db/index';
 import { services, user_pins } from '../db/schema';
 import type { GeminiService } from './gemini';
@@ -52,6 +52,19 @@ export class DockerService {
     const containers = await this.scanContainers();
 
     for (const container of containers) {
+      // Clear stale container_id references to avoid UNIQUE constraint violations
+      // (happens when containers are recreated and get new IDs)
+      await this.db
+        .update(services)
+        .set({ container_id: `stale-${Date.now()}-${Math.random().toString(36).slice(2)}` })
+        .where(
+          and(
+            eq(services.container_id, container.container_id),
+            // Only clear if it's a different service name (same name will be updated below)
+            sql`${services.name} != ${container.name}`,
+          ),
+        );
+
       // Match by container name (stable across recreations) instead of container_id
       const duplicates = await this.db
         .select()
