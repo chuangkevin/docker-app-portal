@@ -37,11 +37,18 @@ export async function updateLink(
     description?: string | null
     icon_color?: string
     order?: number
-    is_pinned?: 0 | 1
   }
 ): Promise<CustomLink> {
   const { data } = await apiClient.patch<CustomLink>(`/links/${id}`, payload)
   return data
+}
+
+export async function pinLink(id: number): Promise<void> {
+  await apiClient.post(`/links/${id}/pin`)
+}
+
+export async function unpinLink(id: number): Promise<void> {
+  await apiClient.delete(`/links/${id}/pin`)
 }
 
 export async function deleteLink(id: number): Promise<void> {

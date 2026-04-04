@@ -118,11 +118,24 @@ export async function runMigrations(db: DrizzleDb): Promise<void> {
     )
   `);
 
-  // Add is_pinned column to custom_links if it doesn't exist
+  // user_link_pins: per-user bookmark pinning (replaces custom_links.is_pinned)
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS user_link_pins (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      link_id INTEGER NOT NULL REFERENCES custom_links(id)
+    )
+  `);
+
+  // Migrate legacy is_pinned data to user_link_pins (one-time)
   try {
-    db.run(sql`ALTER TABLE custom_links ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0`);
+    // If the old column exists, migrate pinned links to user_link_pins for the link creator
+    const legacyPinned = db.all(sql`SELECT id, created_by FROM custom_links WHERE is_pinned = 1`);
+    for (const row of legacyPinned as { id: number; created_by: number }[]) {
+      db.run(sql`INSERT OR IGNORE INTO user_link_pins (user_id, link_id) VALUES (${row.created_by}, ${row.id})`);
+    }
   } catch {
-    // Column already exists, ignore
+    // Column doesn't exist or already migrated, ignore
   }
 
   db.run(sql`

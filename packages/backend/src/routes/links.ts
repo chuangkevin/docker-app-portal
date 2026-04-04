@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { eq, and, or } from 'drizzle-orm';
 import type { DrizzleDb } from '../db/index';
-import { custom_links } from '../db/schema';
+import { custom_links, user_link_pins } from '../db/schema';
 
 const createLinkSchema = z.object({
   name: z.string().min(1).max(100),
@@ -18,13 +18,12 @@ const updateLinkSchema = z.object({
   description: z.string().max(500).nullable().optional(),
   icon_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   order: z.number().int().min(0).optional(),
-  is_pinned: z.union([z.literal(0), z.literal(1)]).optional(),
 });
 
 const linksRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) => {
   const db = opts.db;
 
-  // GET /api/links - get links visible to current user (own + global)
+  // GET /api/links - get links visible to current user (own + global), with per-user pin status
   fastify.get(
     '/api/links',
     { preHandler: [fastify.authenticate] },
@@ -41,10 +40,22 @@ const linksRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) 
           ),
         );
 
+      // Get user's pinned link IDs
+      const pins = await db
+        .select()
+        .from(user_link_pins)
+        .where(eq(user_link_pins.user_id, userId));
+      const pinnedLinkIds = new Set(pins.map((p) => p.link_id));
+
       // Sort by order, then created_at
       links.sort((a, b) => a.order - b.order || a.created_at - b.created_at);
 
-      return reply.send(links);
+      const result = links.map((l) => ({
+        ...l,
+        is_pinned: pinnedLinkIds.has(l.id) ? 1 : 0,
+      }));
+
+      return reply.send(result);
     },
   );
 
@@ -75,7 +86,78 @@ const linksRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) 
         is_global: isGlobal,
       }).returning();
 
-      return reply.status(201).send(result[0]);
+      return reply.status(201).send({ ...result[0], is_pinned: 0 });
+    },
+  );
+
+  // POST /api/links/:id/pin - pin a link for current user
+  fastify.post<{ Params: { id: string } }>(
+    '/api/links/:id/pin',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const linkId = parseInt(request.params.id, 10);
+      if (isNaN(linkId)) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'Invalid link id' });
+      }
+
+      const userId = request.user.userId;
+
+      // Check link exists
+      const link = await db
+        .select()
+        .from(custom_links)
+        .where(eq(custom_links.id, linkId))
+        .limit(1);
+
+      if (!link.length) {
+        return reply.status(404).send({ error: 'Not Found', message: 'Link not found' });
+      }
+
+      // Check if already pinned
+      const existing = await db
+        .select()
+        .from(user_link_pins)
+        .where(
+          and(
+            eq(user_link_pins.user_id, userId),
+            eq(user_link_pins.link_id, linkId),
+          ),
+        )
+        .limit(1);
+
+      if (existing.length === 0) {
+        await db.insert(user_link_pins).values({
+          user_id: userId,
+          link_id: linkId,
+        });
+      }
+
+      return reply.send({ success: true });
+    },
+  );
+
+  // DELETE /api/links/:id/pin - unpin a link for current user
+  fastify.delete<{ Params: { id: string } }>(
+    '/api/links/:id/pin',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const linkId = parseInt(request.params.id, 10);
+      if (isNaN(linkId)) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'Invalid link id' });
+      }
+
+      const userId = request.user.userId;
+
+      await db
+        .delete(user_link_pins)
+        .where(
+          and(
+            eq(user_link_pins.user_id, userId),
+            eq(user_link_pins.link_id, linkId),
+          ),
+        );
+
+      return reply.send({ success: true });
     },
   );
 
@@ -119,7 +201,6 @@ const linksRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) 
       if (body.description !== undefined) updatePayload.description = body.description;
       if (body.icon_color !== undefined) updatePayload.icon_color = body.icon_color;
       if (body.order !== undefined) updatePayload.order = body.order;
-      if (body.is_pinned !== undefined) updatePayload.is_pinned = body.is_pinned;
 
       if (Object.keys(updatePayload).length > 0) {
         await db
@@ -164,6 +245,8 @@ const linksRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) 
         return reply.status(403).send({ error: 'Forbidden' });
       }
 
+      // Clean up pins for this link
+      await db.delete(user_link_pins).where(eq(user_link_pins.link_id, linkId));
       await db.delete(custom_links).where(eq(custom_links.id, linkId));
 
       return reply.send({ success: true });

@@ -58,9 +58,14 @@ export const custom_links = sqliteTable('custom_links', {
   icon_color: text('icon_color').default('#4ECDC4').notNull(),
   created_by: integer('created_by').references(() => users.id).notNull(),
   is_global: integer('is_global').default(0).notNull(), // 1 = admin 建立，所有人可見
-  is_pinned: integer('is_pinned').default(0).notNull(),
   order: integer('order').default(0).notNull(),
   created_at: integer('created_at').default(sql`(unixepoch() * 1000)`).notNull(),
+});
+
+export const user_link_pins = sqliteTable('user_link_pins', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  user_id: integer('user_id').references(() => users.id).notNull(),
+  link_id: integer('link_id').references(() => custom_links.id).notNull(),
 });
 
 export const admin_service_overrides = sqliteTable('admin_service_overrides', {
@@ -85,5 +90,6 @@ export type UserPin = typeof user_pins.$inferSelect;
 export type RefreshToken = typeof refresh_tokens.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
 export type CustomLink = typeof custom_links.$inferSelect;
+export type UserLinkPin = typeof user_link_pins.$inferSelect;
 export type AdminServiceOverride = typeof admin_service_overrides.$inferSelect;
 export type UserServicePref = typeof user_service_prefs.$inferSelect;

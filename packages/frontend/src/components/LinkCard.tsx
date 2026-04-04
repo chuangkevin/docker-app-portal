@@ -1,6 +1,6 @@
 import React from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { updateLink } from '../api/links'
+import { pinLink, unpinLink } from '../api/links'
 import type { CustomLink } from '../api/links'
 
 interface LinkCardProps {
@@ -12,7 +12,7 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
 
   const pinMutation = useMutation({
     mutationFn: () =>
-      updateLink(link.id, { is_pinned: link.is_pinned ? 0 : 1 }),
+      link.is_pinned ? unpinLink(link.id) : pinLink(link.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['links'] })
     },
