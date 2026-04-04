@@ -1,7 +1,7 @@
 import Docker from 'dockerode';
 import { eq, lt, and, sql } from 'drizzle-orm';
 import type { DrizzleDb } from '../db/index';
-import { services, user_pins } from '../db/schema';
+import { services, user_pins, admin_service_overrides, user_service_prefs } from '../db/schema';
 import type { GeminiService } from './gemini';
 
 export interface ContainerInfo {
@@ -125,6 +125,8 @@ export class DockerService {
             }
           }
           await this.db.delete(user_pins).where(eq(user_pins.service_id, zombie.id));
+          await this.db.delete(admin_service_overrides).where(eq(admin_service_overrides.service_id, zombie.id));
+          await this.db.delete(user_service_prefs).where(eq(user_service_prefs.service_id, zombie.id));
           await this.db.delete(services).where(eq(services.id, zombie.id));
         }
 
@@ -162,6 +164,8 @@ export class DockerService {
 
     for (const stale of staleServices) {
       await this.db.delete(user_pins).where(eq(user_pins.service_id, stale.id));
+      await this.db.delete(admin_service_overrides).where(eq(admin_service_overrides.service_id, stale.id));
+      await this.db.delete(user_service_prefs).where(eq(user_service_prefs.service_id, stale.id));
       await this.db.delete(services).where(eq(services.id, stale.id));
     }
 
