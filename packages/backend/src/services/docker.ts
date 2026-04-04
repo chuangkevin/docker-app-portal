@@ -89,7 +89,8 @@ export class DockerService {
           return curScore > bestScore ? cur : best;
         });
 
-        // Merge metadata from all duplicates into keeper (don't lose user customizations)
+        // Merge metadata from all duplicates into keeper, then delete zombies BEFORE updating keeper
+        // (zombies may hold the new container_id, causing UNIQUE constraint violation if not removed first)
         const zombies = duplicates.filter((d) => d.id !== keeper.id);
         for (const zombie of zombies) {
           const mergePayload: Record<string, string> = {};
@@ -112,24 +113,8 @@ export class DockerService {
               .where(eq(services.id, keeper.id));
             console.log(`Merged metadata from zombie ${zombie.id} into keeper ${keeper.id} for "${container.name}"`);
           }
-        }
 
-        // Update the keeper with current container info
-        await this.db
-          .update(services)
-          .set({
-            container_id: container.container_id,
-            image: container.image,
-            ports: JSON.stringify(container.ports),
-            labels: JSON.stringify(container.labels),
-            status: 'online',
-            last_seen_at: scanTime,
-          })
-          .where(eq(services.id, keeper.id));
-
-        // Migrate pins from zombies to keeper, then delete zombies
-        for (const zombie of zombies) {
-          // Move pins to keeper (ignore conflicts)
+          // Migrate pins from zombie to keeper before deleting
           const zombiePins = await this.db.select().from(user_pins).where(eq(user_pins.service_id, zombie.id));
           for (const pin of zombiePins) {
             const existingPin = await this.db.select().from(user_pins)
@@ -146,6 +131,19 @@ export class DockerService {
         if (zombies.length > 0) {
           console.log(`Merged ${zombies.length} duplicate(s) for service "${container.name}"`);
         }
+
+        // Update the keeper with current container info (safe now that zombies are removed)
+        await this.db
+          .update(services)
+          .set({
+            container_id: container.container_id,
+            image: container.image,
+            ports: JSON.stringify(container.ports),
+            labels: JSON.stringify(container.labels),
+            status: 'online',
+            last_seen_at: scanTime,
+          })
+          .where(eq(services.id, keeper.id));
       }
     }
 
