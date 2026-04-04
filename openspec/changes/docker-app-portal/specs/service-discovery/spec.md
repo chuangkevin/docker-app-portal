@@ -17,6 +17,23 @@
 
 ---
 
+### Requirement: Caddyfile 即時同步
+系統 SHALL 透過目錄級 bind mount 掛載 Caddy 設定目錄，確保 Caddyfile 變更即時反映在服務中。
+
+#### Scenario: Caddyfile 被編輯器修改（inode 變化）
+- **WHEN** 管理者使用 vim/nano 等編輯器修改 Caddyfile（產生新 inode）
+- **THEN** 後端在下次 API 請求時讀取到最新的 Caddyfile 內容，無需重啟容器
+
+#### Scenario: Caddyfile 包含嵌套大括號
+- **WHEN** Caddyfile 的 reverse_proxy 指令包含子設定區塊（如 `{ flush_interval -1 }`）
+- **THEN** 系統 SHALL 正確解析 port，使用 brace counting 而非 `[^}]*` regex
+
+#### 技術決策：目錄 mount 取代檔案 mount
+- **決策**：docker-compose volume 改為 `/home/kevin/DockerCompose/caddy:/app/caddyfile:ro`
+- **理由**：Linux bind mount 單一檔案是綁定 inode，編輯器常用「寫暫存檔→rename」導致 inode 變更，容器內看到過時內容。掛載目錄不受此影響。
+
+---
+
 ### Requirement: Gemini AI 服務描述生成
 系統 SHALL 對每個新發現的容器呼叫 Google Gemini 2.5 Flash API，生成人類可讀的服務介紹，並快取至資料庫。
 
