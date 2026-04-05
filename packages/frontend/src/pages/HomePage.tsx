@@ -22,6 +22,7 @@ const HomePage: React.FC = () => {
   const { data: services, isLoading: servicesLoading } = useQuery({
     queryKey: ['services'],
     queryFn: getServices,
+    refetchInterval: 30000,
   })
 
   const { data: links } = useQuery({
