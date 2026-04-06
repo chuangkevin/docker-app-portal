@@ -7,6 +7,7 @@ import {
   settings,
   user_pins,
   refresh_tokens,
+  services,
 } from '../db/schema';
 import * as geminiKeys from '../services/geminiKeys';
 
@@ -128,6 +129,31 @@ const adminRoute: FastifyPluginAsync<{ db: DrizzleDb }> = async (fastify, opts) 
       // Delete user
       await db.delete(users).where(eq(users.id, userId));
 
+      return reply.send({ success: true });
+    },
+  );
+
+  // PATCH /api/admin/services/:id/external - set is_external flag
+  fastify.patch<{ Params: { id: string } }>(
+    '/api/admin/services/:id/external',
+    { preHandler: [fastify.authenticate, fastify.adminOnly] },
+    async (request, reply) => {
+      const serviceId = parseInt(request.params.id, 10);
+      if (isNaN(serviceId)) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'Invalid service id' });
+      }
+
+      const body = request.body as { is_external?: number };
+      if (body?.is_external === undefined || (body.is_external !== 0 && body.is_external !== 1)) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'is_external must be 0 or 1' });
+      }
+
+      const existing = await db.select().from(services).where(eq(services.id, serviceId)).limit(1);
+      if (!existing.length) {
+        return reply.status(404).send({ error: 'Not Found', message: 'Service not found' });
+      }
+
+      await db.update(services).set({ is_external: body.is_external }).where(eq(services.id, serviceId));
       return reply.send({ success: true });
     },
   );

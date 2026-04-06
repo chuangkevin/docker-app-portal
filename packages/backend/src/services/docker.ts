@@ -149,11 +149,11 @@ export class DockerService {
       }
     }
 
-    // Mark containers not seen in this scan as offline
+    // Mark containers not seen in this scan as offline (skip external services)
     await this.db
       .update(services)
       .set({ status: 'offline' })
-      .where(lt(services.last_seen_at, scanTime));
+      .where(and(lt(services.last_seen_at, scanTime), eq(services.is_external, 0)));
 
     // Clean up services offline for more than 24 hours
     const oneDayAgo = scanTime - 24 * 60 * 60 * 1000;

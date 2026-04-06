@@ -30,6 +30,7 @@ export const services = sqliteTable('services', {
   custom_description: text('custom_description'),
   status: text('status', { enum: ['online', 'offline'] }).default('online').notNull(),
   last_seen_at: integer('last_seen_at').notNull(),
+  is_external: integer('is_external').default(0).notNull(),
 });
 
 export const user_pins = sqliteTable('user_pins', {
