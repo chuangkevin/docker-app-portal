@@ -46,7 +46,7 @@ export class CaddyfileService {
         i++;
       }
       const blockContent = content.slice(blockStart, i - 1);
-      const proxyMatch = blockContent.match(/reverse_proxy\s+localhost:(\d+)/);
+      const proxyMatch = blockContent.match(/reverse_proxy\s+(?:localhost|\d{1,3}(?:\.\d{1,3}){3}):(\d+)/);
       if (proxyMatch) {
         portMap.set(handlerName, parseInt(proxyMatch[1], 10));
       }
