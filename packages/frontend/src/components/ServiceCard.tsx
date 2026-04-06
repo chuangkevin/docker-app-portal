@@ -2,6 +2,7 @@ import React from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Service } from '../api/services'
 import { pinService, unpinService } from '../api/services'
+import { useTabStore } from '../stores/tabStore'
 
 interface ServiceCardProps {
   service: Service
@@ -9,6 +10,7 @@ interface ServiceCardProps {
 
 const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
   const queryClient = useQueryClient()
+  const openApp = useTabStore((state) => state.openApp)
   const description =
     service.custom_description || service.ai_description || '暫無描述'
 
@@ -22,7 +24,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
 
   const handleOpen = () => {
     if (service.domain) {
-      window.open(`https://${service.domain}`, '_blank')
+      openApp(service.display_name || service.name, `https://${service.domain}`)
     }
   }
 

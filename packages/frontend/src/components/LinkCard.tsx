@@ -2,6 +2,7 @@ import React from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { pinLink, unpinLink } from '../api/links'
 import type { CustomLink } from '../api/links'
+import { useTabStore } from '../stores/tabStore'
 
 interface LinkCardProps {
   link: CustomLink
@@ -9,6 +10,7 @@ interface LinkCardProps {
 
 const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
   const queryClient = useQueryClient()
+  const openApp = useTabStore((state) => state.openApp)
 
   const pinMutation = useMutation({
     mutationFn: () =>
@@ -19,7 +21,7 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
   })
 
   const handleOpen = () => {
-    window.open(link.url, '_blank')
+    openApp(link.name, link.url)
   }
 
   // Extract hostname for display

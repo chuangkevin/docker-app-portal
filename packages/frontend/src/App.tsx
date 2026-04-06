@@ -1,10 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import SelectPage from './pages/SelectPage'
-import HomePage from './pages/HomePage'
 import AdminPage from './pages/AdminPage'
 import SettingsPage from './pages/SettingsPage'
 import ProtectedRoute from './components/ProtectedRoute'
+import TabLayout from './components/TabLayout'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,7 +25,7 @@ function App() {
             path="/"
             element={
               <ProtectedRoute>
-                <HomePage />
+                <TabLayout />
               </ProtectedRoute>
             }
           />
