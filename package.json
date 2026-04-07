@@ -6,6 +6,12 @@
     "dev:backend": "npm --workspace packages/backend run dev",
     "dev:frontend": "npm --workspace packages/frontend run dev",
     "build": "npm --workspace packages/frontend run build && npm --workspace packages/backend run build",
-    "test:backend": "npm --workspace packages/backend run test"
+    "test:backend": "npm --workspace packages/backend run test",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --write \"packages/**/*.{ts,tsx,js,json,css,md}\""
+  },
+  "devDependencies": {
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.2.5"
   }
 }
