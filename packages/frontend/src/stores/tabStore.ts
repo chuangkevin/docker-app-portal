@@ -13,6 +13,16 @@ const PORTAL_TAB: AppTab = {
   title: 'Portal',
 }
 
+const SESSION_KEY = 'portal:tab'
+
+const saveTabSession = (url: string, title: string) => {
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ url, title })) } catch {}
+}
+
+const clearTabSession = () => {
+  try { sessionStorage.removeItem(SESSION_KEY) } catch {}
+}
+
 interface TabStore {
   tabs: AppTab[]
   activeTabId: string
@@ -31,12 +41,14 @@ export const useTabStore = create<TabStore>((set, get) => ({
     const existing = tabs.find((t) => t.url === url)
     if (existing) {
       window.location.hash = `app=${encodeURIComponent(url)}&title=${encodeURIComponent(existing.title)}`
+      saveTabSession(url, existing.title)
       set({ activeTabId: existing.id })
       return
     }
     const id = `tab-${Date.now()}`
     const newTab: AppTab = { id, type: 'app', title, url }
     window.location.hash = `app=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`
+    saveTabSession(url, title)
     set({ tabs: [...tabs, newTab], activeTabId: id })
   },
 
@@ -53,8 +65,10 @@ export const useTabStore = create<TabStore>((set, get) => ({
     const newActiveTab = newTabs.find((t) => t.id === newActiveId)
     if (newActiveTab?.type === 'app' && newActiveTab.url) {
       window.location.hash = `app=${encodeURIComponent(newActiveTab.url)}&title=${encodeURIComponent(newActiveTab.title)}`
+      saveTabSession(newActiveTab.url, newActiveTab.title)
     } else {
       window.location.hash = ''
+      clearTabSession()
     }
     set({ tabs: newTabs, activeTabId: newActiveId })
   },
@@ -64,8 +78,10 @@ export const useTabStore = create<TabStore>((set, get) => ({
     const tab = tabs.find((t) => t.id === id)
     if (tab?.type === 'app' && tab.url) {
       window.location.hash = `app=${encodeURIComponent(tab.url)}&title=${encodeURIComponent(tab.title)}`
+      saveTabSession(tab.url, tab.title)
     } else {
       window.location.hash = ''
+      clearTabSession()
     }
     set({ activeTabId: id })
   },

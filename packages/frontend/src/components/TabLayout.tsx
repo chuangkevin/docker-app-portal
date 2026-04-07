@@ -95,15 +95,33 @@ const TabLayout: React.FC = () => {
   const topBarRef = useRef<HTMLDivElement>(null)
   const bottomBarRef = useRef<HTMLDivElement>(null)
 
-  // Restore active app tab from URL hash on initial load
+  // Restore active app tab on initial load.
+  // Primary source: sessionStorage (survives the auth-redirect cycle — hash is lost when
+  // ProtectedRoute sends the user to /select, but sessionStorage persists across navigation).
+  // Fallback: URL hash (handles shared/bookmarked links that land directly on the page).
   useEffect(() => {
-    const hash = window.location.hash.slice(1)
-    if (!hash) return
-    const params = new URLSearchParams(hash)
-    const url = params.get('app')
-    if (!url) return
-    const title = params.get('title') || new URL(url).hostname
-    openApp(title, url)
+    // 1. sessionStorage — reliable after refresh + re-auth
+    try {
+      const saved = sessionStorage.getItem('portal:tab')
+      if (saved) {
+        const { url, title } = JSON.parse(saved) as { url?: string; title?: string }
+        if (url) {
+          openApp(title || url, url)
+          return
+        }
+      }
+    } catch {}
+
+    // 2. URL hash fallback
+    try {
+      const hash = window.location.hash.slice(1)
+      if (!hash) return
+      const params = new URLSearchParams(hash)
+      const url = params.get('app')
+      if (!url) return
+      const title = params.get('title') || new URL(url).hostname
+      openApp(title, url)
+    } catch {}
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll active tab into view when it changes
