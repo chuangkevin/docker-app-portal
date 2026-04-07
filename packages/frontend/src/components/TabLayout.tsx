@@ -151,7 +151,7 @@ const TabLayout: React.FC = () => {
               className={`absolute inset-0 w-full h-full border-none bg-white ${
                 activeTabId === tab.id ? '' : 'hidden'
               }`}
-              allow="fullscreen"
+              allow="fullscreen; geolocation"
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
             />
           )

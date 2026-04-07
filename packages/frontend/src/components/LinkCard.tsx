@@ -21,7 +21,9 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
   })
 
   const handleOpen = () => {
-    openApp(link.name, link.url)
+    // Normalise to HTTPS so iframe geolocation works in modern browsers
+    const safeUrl = link.url.replace(/^http:\/\//i, 'https://')
+    openApp(link.name, safeUrl)
   }
 
   // Extract hostname for display
