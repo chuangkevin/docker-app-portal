@@ -91,9 +91,20 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onActivate, onClose })
 }
 
 const TabLayout: React.FC = () => {
-  const { tabs, activeTabId, closeTab, setActiveTab } = useTabStore()
+  const { tabs, activeTabId, closeTab, setActiveTab, openApp } = useTabStore()
   const topBarRef = useRef<HTMLDivElement>(null)
   const bottomBarRef = useRef<HTMLDivElement>(null)
+
+  // Restore active app tab from URL hash on initial load
+  useEffect(() => {
+    const hash = window.location.hash.slice(1)
+    if (!hash) return
+    const params = new URLSearchParams(hash)
+    const url = params.get('app')
+    if (!url) return
+    const title = params.get('title') || new URL(url).hostname
+    openApp(title, url)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll active tab into view when it changes
   useEffect(() => {

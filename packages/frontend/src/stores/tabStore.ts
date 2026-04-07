@@ -30,11 +30,13 @@ export const useTabStore = create<TabStore>((set, get) => ({
     // If already open, just switch to it
     const existing = tabs.find((t) => t.url === url)
     if (existing) {
+      window.location.hash = `app=${encodeURIComponent(url)}&title=${encodeURIComponent(existing.title)}`
       set({ activeTabId: existing.id })
       return
     }
     const id = `tab-${Date.now()}`
     const newTab: AppTab = { id, type: 'app', title, url }
+    window.location.hash = `app=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`
     set({ tabs: [...tabs, newTab], activeTabId: id })
   },
 
@@ -48,8 +50,23 @@ export const useTabStore = create<TabStore>((set, get) => ({
       const newIdx = Math.min(idx, newTabs.length - 1)
       newActiveId = newTabs[newIdx]?.id ?? 'portal'
     }
+    const newActiveTab = newTabs.find((t) => t.id === newActiveId)
+    if (newActiveTab?.type === 'app' && newActiveTab.url) {
+      window.location.hash = `app=${encodeURIComponent(newActiveTab.url)}&title=${encodeURIComponent(newActiveTab.title)}`
+    } else {
+      window.location.hash = ''
+    }
     set({ tabs: newTabs, activeTabId: newActiveId })
   },
 
-  setActiveTab: (id) => set({ activeTabId: id }),
+  setActiveTab: (id) => {
+    const { tabs } = get()
+    const tab = tabs.find((t) => t.id === id)
+    if (tab?.type === 'app' && tab.url) {
+      window.location.hash = `app=${encodeURIComponent(tab.url)}&title=${encodeURIComponent(tab.title)}`
+    } else {
+      window.location.hash = ''
+    }
+    set({ activeTabId: id })
+  },
 }))
