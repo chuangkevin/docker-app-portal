@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../stores/authStore'
 import { getServices } from '../api/services'
 import { getLinks } from '../api/links'
+import { logout } from '../api/auth'
 import ServiceCard from '../components/ServiceCard'
 import LinkCard from '../components/LinkCard'
 import type { Service } from '../api/services'
@@ -13,6 +14,7 @@ type HomeTab = 'pinned' | 'services' | 'bookmarks'
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const currentUser = useAuthStore((state) => state.currentUser)
   const clearAuth = useAuthStore((state) => state.clearAuth)
 
@@ -20,17 +22,27 @@ const HomePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<HomeTab>('pinned')
 
   const { data: services, isLoading: servicesLoading } = useQuery({
-    queryKey: ['services'],
+    queryKey: ['services', currentUser?.id],
     queryFn: getServices,
+    enabled: !!currentUser,
     refetchInterval: 30000,
   })
 
   const { data: links } = useQuery({
-    queryKey: ['links'],
+    queryKey: ['links', currentUser?.id],
     queryFn: getLinks,
+    enabled: !!currentUser,
   })
 
-  const handleSwitchUser = () => {
+  const handleSwitchUser = async () => {
+    try {
+      await logout()
+    } catch {
+      // Keep local logout working even if the backend session is already gone.
+    }
+
+    queryClient.removeQueries({ queryKey: ['services'] })
+    queryClient.removeQueries({ queryKey: ['links'] })
     clearAuth()
     navigate('/select')
   }

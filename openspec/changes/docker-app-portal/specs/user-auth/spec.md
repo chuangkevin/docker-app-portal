@@ -70,6 +70,10 @@ Admin 頭像 SHALL 受密碼保護，確保只有知道密碼的人才能以 adm
 - **WHEN** 前端請求回傳 HTTP 401（accessToken 過期）
 - **THEN** 前端自動用 refreshToken cookie 呼叫 `/api/auth/refresh`，取得新 accessToken 後重試
 
+#### Scenario: 重新整理頁面後恢復登入狀態
+- **WHEN** 已登入的使用者重新整理瀏覽器頁面，且 refreshToken cookie 仍有效
+- **THEN** 前端在路由保護判斷前先呼叫 `/api/auth/refresh` 還原 accessToken 與目前使用者，不應被導回 `/select`
+
 #### Scenario: 切換使用者
 - **WHEN** 使用者點擊「切換使用者」
 - **THEN** 前端清除 accessToken、呼叫 `/api/auth/logout` 讓 refreshToken 失效，返回使用者選擇畫面

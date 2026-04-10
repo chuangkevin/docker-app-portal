@@ -192,6 +192,14 @@
 
 ---
 
+## 10.8 Session Restore Bug Fix (2026-04-10)
+
+- [x] 10.8.1 前端：App 啟動時先檢查 refresh session，避免頁面重整時因 accessToken 僅存在 memory 而被導回 `/select`
+- [x] 10.8.2 前端：auth store 支援由 refresh 回傳的 JWT 還原 `currentUser`
+- [x] 10.8.3 **[驗證]** `npm --workspace packages/frontend run build`
+
+---
+
 ## 11. CI/CD — GitHub Actions（參考 ebook-reader 模式）
 
 - [x] 11.1 建立 `packages/frontend/Dockerfile`（multi-stage：build → nginx）

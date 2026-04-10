@@ -57,6 +57,7 @@ const SettingsPage: React.FC = () => {
 
 function HideServicesSection() {
   const queryClient = useQueryClient()
+  const currentUser = useAuthStore((state) => state.currentUser)
   const [hideSearch, setHideSearch] = useState('')
 
   // We fetch ALL services (including hidden ones) from the services/all endpoint
@@ -65,15 +66,16 @@ function HideServicesSection() {
   // or show only currently visible ones with a toggle.
   // Simplest: show all visible services with a "hide" button.
   const { data: services, isLoading } = useQuery({
-    queryKey: ['services'],
+    queryKey: ['services', currentUser?.id],
     queryFn: getServices,
+    enabled: !!currentUser,
   })
 
   const hideMutation = useMutation({
     mutationFn: ({ id, is_hidden }: { id: number; is_hidden: boolean }) =>
       setUserServicePref(id, is_hidden),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services'] })
+      queryClient.invalidateQueries({ queryKey: ['services', currentUser?.id] })
     },
   })
 
@@ -170,15 +172,16 @@ function BookmarkManagementSection() {
   const [editDesc, setEditDesc] = useState('')
 
   const { data: links, isLoading } = useQuery({
-    queryKey: ['links'],
+    queryKey: ['links', currentUser?.id],
     queryFn: getLinks,
+    enabled: !!currentUser,
   })
 
   const createMutation = useMutation({
     mutationFn: (data: { name: string; url: string; description?: string; icon_color?: string }) =>
       createLink(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['links'] })
+      queryClient.invalidateQueries({ queryKey: ['links', currentUser?.id] })
       setNewName('')
       setNewUrl('')
       setNewDesc('')
@@ -198,7 +201,7 @@ function BookmarkManagementSection() {
       description?: string | null
     }) => updateLink(id, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['links'] })
+      queryClient.invalidateQueries({ queryKey: ['links', currentUser?.id] })
       setEditingId(null)
     },
   })
@@ -206,7 +209,7 @@ function BookmarkManagementSection() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteLink(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['links'] })
+      queryClient.invalidateQueries({ queryKey: ['links', currentUser?.id] })
     },
   })
 
