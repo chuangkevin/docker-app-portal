@@ -41,7 +41,9 @@ apiClient.interceptors.response.use(
       _retry?: boolean
     }
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const isRefreshRequest = originalRequest.url?.includes('/auth/refresh')
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest) {
       if (isRefreshing) {
         // Queue this request until the refresh is done
         return new Promise((resolve, reject) => {
@@ -75,7 +77,6 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null)
         useAuthStore.getState().clearAuth()
-        window.location.href = '/select'
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false

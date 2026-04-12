@@ -1,4 +1,10 @@
+import axios from 'axios'
 import apiClient from './client'
+
+const authClient = axios.create({
+  baseURL: '/api',
+  withCredentials: true,
+})
 
 export interface SelectUserResponse {
   accessToken: string
@@ -27,7 +33,7 @@ export async function adminLogin(password: string): Promise<AdminLoginResponse> 
 }
 
 export async function refreshToken(): Promise<RefreshResponse> {
-  const { data } = await apiClient.post<RefreshResponse>('/auth/refresh')
+  const { data } = await authClient.post<RefreshResponse>('/auth/refresh')
   return data
 }
 
