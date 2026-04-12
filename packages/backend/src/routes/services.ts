@@ -11,6 +11,42 @@ const updateServiceSchema = z.object({
   display_name: z.string().nullable().optional(),
 });
 
+function scoreServiceRecord(service: {
+  status: 'online' | 'offline';
+  display_name: string | null;
+  custom_description: string | null;
+  ai_description: string | null;
+}): number {
+  return (service.status === 'online' ? 10 : 0)
+    + (service.display_name ? 4 : 0)
+    + (service.custom_description ? 2 : 0)
+    + (service.ai_description ? 1 : 0);
+}
+
+function mergeDomainDuplicate<T extends {
+  status: 'online' | 'offline';
+  display_name: string | null;
+  custom_description: string | null;
+  ai_description: string | null;
+}>(existing: T, incoming: T): T {
+  const existingScore = scoreServiceRecord(existing);
+  const incomingScore = scoreServiceRecord(incoming);
+  const winner = incomingScore > existingScore ? { ...incoming } : { ...existing };
+  const loser = incomingScore > existingScore ? existing : incoming;
+
+  if (!winner.display_name && loser.display_name) {
+    winner.display_name = loser.display_name;
+  }
+  if (!winner.custom_description && loser.custom_description) {
+    winner.custom_description = loser.custom_description;
+  }
+  if (!winner.ai_description && loser.ai_description) {
+    winner.ai_description = loser.ai_description;
+  }
+
+  return winner;
+}
+
 const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: CaddyfileService }> = async (fastify, opts) => {
   const db = opts.db;
   const caddyfileService = opts.caddyfileService;
@@ -88,7 +124,7 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: Caddy
         })
         .filter(Boolean) as (typeof allServices[number] & { domain: string })[];
 
-      // Deduplicate: keep best record per domain (prefer online + display_name + custom_description)
+      // Deduplicate by domain, but keep metadata from duplicates so custom titles remain searchable.
       const domainMap = new Map<string, typeof servicesWithDomain[number]>();
       for (const s of servicesWithDomain) {
         const existing = domainMap.get(s.domain);
@@ -96,11 +132,7 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: Caddy
           domainMap.set(s.domain, s);
           continue;
         }
-        const scoreExisting = (existing.status === 'online' ? 10 : 0) + (existing.display_name ? 4 : 0) + (existing.custom_description ? 2 : 0) + (existing.ai_description ? 1 : 0);
-        const scoreNew = (s.status === 'online' ? 10 : 0) + (s.display_name ? 4 : 0) + (s.custom_description ? 2 : 0) + (s.ai_description ? 1 : 0);
-        if (scoreNew > scoreExisting) {
-          domainMap.set(s.domain, s);
-        }
+        domainMap.set(s.domain, mergeDomainDuplicate(existing, s));
       }
 
       const result = Array.from(domainMap.values()).map((s) => ({

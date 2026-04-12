@@ -29,7 +29,12 @@ async function buildTestServer() {
   await fastify.register(adminOnlyPlugin);
   await fastify.register(usersRoute, { db });
   await fastify.register(authRoute, { db });
-  await fastify.register(servicesRoute, { db });
+  await fastify.register(servicesRoute, {
+    db,
+    caddyfileService: {
+      getDomainForPort: (port: number) => (port === 8080 ? 'portal.sisihome.org' : null),
+    },
+  });
   await fastify.register(pagesRoute, { db });
 
   return { fastify, db, sqlite };
@@ -77,6 +82,7 @@ function insertService(db: any, data: Partial<schema.Service> & { container_id: 
     image: data.image,
     ports: data.ports || '[]',
     labels: data.labels || '{}',
+    display_name: data.display_name || null,
     status: data.status || 'online',
     last_seen_at: data.last_seen_at || Date.now(),
     ai_description: data.ai_description || null,
@@ -130,6 +136,38 @@ describe('Services API', () => {
       expect(body).toHaveLength(1);
       expect(body[0].name).toBe('nginx');
       expect(body[0].ports).toEqual([{ public: 8080, private: 80, type: 'tcp' }]);
+    });
+
+    it('should keep custom titles when deduplicating same-domain services', async () => {
+      await insertService(server.db, {
+        container_id: 'online-1',
+        name: 'portal-online',
+        image: 'portal:latest',
+        status: 'online',
+        ports: JSON.stringify([{ public: 8080, private: 80, type: 'tcp' }]),
+      });
+      await insertService(server.db, {
+        container_id: 'offline-1',
+        name: 'portal-offline',
+        image: 'portal:old',
+        status: 'offline',
+        display_name: '我的自訂標題',
+        custom_description: '自訂描述',
+        ports: JSON.stringify([{ public: 8080, private: 80, type: 'tcp' }]),
+      });
+
+      const res = await server.fastify.inject({
+        method: 'GET',
+        url: '/api/services',
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body).toHaveLength(1);
+      expect(body[0].status).toBe('online');
+      expect(body[0].display_name).toBe('我的自訂標題');
+      expect(body[0].description).toBe('自訂描述');
     });
 
     it('should prefer custom_description over ai_description', async () => {
