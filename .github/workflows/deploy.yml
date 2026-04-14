@@ -18,6 +18,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      # Keep Tailscale login isolated so external network failures are easy to diagnose.
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
         with:
