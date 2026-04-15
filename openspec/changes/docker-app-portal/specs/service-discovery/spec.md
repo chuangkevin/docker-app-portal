@@ -78,3 +78,20 @@
 #### Scenario: 開啟服務
 - **WHEN** 使用者點擊「開啟服務」
 - **THEN** 在新 Tab 開啟 `http://<host>:<host_port>`
+
+---
+
+### Requirement: 首頁搜尋結果可見性
+前端 Landing Page SHALL 在搜尋時直接顯示所有符合條件的服務與書籤結果，不得讓有效命中被目前 tab 隱藏。
+
+#### Scenario: 搜尋命中未置頂服務
+- **WHEN** 使用者在首頁搜尋框輸入關鍵字，且命中的服務不在目前顯示的 `置頂` tab
+- **THEN** 畫面仍 SHALL 直接顯示該命中服務，而不是要求使用者手動切到 `所有服務`
+
+#### Scenario: 搜尋比對自訂標題與描述
+- **WHEN** 使用者輸入關鍵字
+- **THEN** 系統 SHALL 至少比對 `name`、`display_name`、`description`、`custom_description`、`ai_description`、`domain` 與書籤名稱/描述/URL
+
+#### Scenario: 搜尋同時命中服務與書籤
+- **WHEN** 關鍵字同時命中服務與書籤
+- **THEN** 首頁 SHALL 同時展示兩種結果，避免 tab 狀態誤導使用者以為資料不存在

@@ -62,6 +62,14 @@
   custom_description
 - Multiple containers on the same subdomain merge into one tile
 
+### Home Search Behavior
+- Homepage search must match `name`, `display_name`, `description`, `custom_description`,
+  `ai_description`, and `domain`
+- When the search box is non-empty, the UI must show all matching services and bookmarks in a
+  dedicated search-results view instead of hiding matches behind the current tab
+- This avoids the misleading case where a valid match exists in `所有服務` but the user is still
+  looking at the default `置頂` tab
+
 ---
 
 ## Hard Constraints
