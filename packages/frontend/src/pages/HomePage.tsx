@@ -20,6 +20,7 @@ const HomePage: React.FC = () => {
 
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<HomeTab>('pinned')
+  const isSearching = search.trim().length > 0
 
   const { data: services, isLoading: servicesLoading } = useQuery({
     queryKey: ['services', currentUser?.id],
@@ -205,6 +206,42 @@ const HomePage: React.FC = () => {
           </div>
         ) : (
           <>
+            {isSearching ? (
+              <div className="space-y-8">
+                <section>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="text-white text-lg font-semibold">符合條件的服務</h2>
+                    <span className="text-sm text-slate-400">{sortedServices.length} 筆</span>
+                  </div>
+                  {sortedServices.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {sortedServices.map((service: Service) => (
+                        <ServiceCard key={`search-svc-${service.id}`} service={service} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-slate-500 text-lg">找不到符合條件的服務</p>
+                  )}
+                </section>
+
+                <section>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="text-white text-lg font-semibold">符合條件的書籤</h2>
+                    <span className="text-sm text-slate-400">{filteredLinks.length} 筆</span>
+                  </div>
+                  {filteredLinks.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {filteredLinks.map((link: CustomLink) => (
+                        <LinkCard key={`search-link-${link.id}`} link={link} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-slate-500 text-lg">找不到符合條件的書籤</p>
+                  )}
+                </section>
+              </div>
+            ) : (
+              <>
             {/* Pinned Tab */}
             {activeTab === 'pinned' && (
               pinnedCount > 0 ? (
@@ -257,6 +294,8 @@ const HomePage: React.FC = () => {
                   </p>
                 </div>
               )
+            )}
+              </>
             )}
           </>
         )}
