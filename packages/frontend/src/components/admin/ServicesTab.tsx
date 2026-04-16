@@ -47,6 +47,15 @@ export default function ServicesTab() {
     },
   })
 
+  const updateOpenBehaviorMutation = useMutation({
+    mutationFn: ({ id, openInBrowser }: { id: number; openInBrowser: boolean }) =>
+      updateService(id, { open_in_browser: openInBrowser ? 1 : 0 }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-services'] })
+      queryClient.invalidateQueries({ queryKey: ['services'] })
+    },
+  })
+
   const regenMutation = useMutation({
     mutationFn: (id: number) => regenerateDescription(id),
     onSuccess: () => {
@@ -299,6 +308,32 @@ export default function ServicesTab() {
                 </button>
               </div>
             )}
+          </div>
+
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2">
+            <div>
+              <p className="text-slate-300 text-sm">開啟方式</p>
+              <p className="text-slate-500 text-xs">
+                {service.open_in_browser ? '外部瀏覽器新分頁' : 'Portal iframe 分頁'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                updateOpenBehaviorMutation.mutate({
+                  id: service.id,
+                  openInBrowser: !service.open_in_browser,
+                })
+              }
+              disabled={updateOpenBehaviorMutation.isPending}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition disabled:opacity-40 ${
+                service.open_in_browser
+                  ? 'border border-cyan-600 text-cyan-300 hover:bg-cyan-600/10'
+                  : 'border border-slate-600 text-slate-300 hover:text-white'
+              }`}
+            >
+              {service.open_in_browser ? '改回 iframe' : '改成外部開啟'}
+            </button>
           </div>
 
           {/* Description */}

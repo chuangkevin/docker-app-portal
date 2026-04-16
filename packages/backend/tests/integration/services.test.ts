@@ -87,6 +87,7 @@ function insertService(db: any, data: Partial<schema.Service> & { container_id: 
     last_seen_at: data.last_seen_at || Date.now(),
     ai_description: data.ai_description || null,
     custom_description: data.custom_description || null,
+    open_in_browser: data.open_in_browser || 0,
   }).returning();
 }
 
@@ -476,6 +477,25 @@ describe('Services API', () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body.custom_description).toBe('My custom desc');
+    });
+
+    it('should update open_in_browser', async () => {
+      const [svc] = await insertService(server.db, {
+        container_id: 'abc2',
+        name: 'svc2',
+        image: 'img2',
+      });
+
+      const res = await server.fastify.inject({
+        method: 'PATCH',
+        url: `/api/services/${svc.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { open_in_browser: 1 },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.open_in_browser).toBe(1);
     });
 
     it('should return 403 for non-admin', async () => {

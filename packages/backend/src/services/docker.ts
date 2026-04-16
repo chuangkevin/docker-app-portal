@@ -93,7 +93,7 @@ export class DockerService {
         // (zombies may hold the new container_id, causing UNIQUE constraint violation if not removed first)
         const zombies = duplicates.filter((d) => d.id !== keeper.id);
         for (const zombie of zombies) {
-          const mergePayload: Record<string, string> = {};
+          const mergePayload: Record<string, string | number> = {};
           if (!keeper.display_name && zombie.display_name) {
             mergePayload.display_name = zombie.display_name;
             keeper.display_name = zombie.display_name;
@@ -105,6 +105,10 @@ export class DockerService {
           if (!keeper.ai_description && zombie.ai_description) {
             mergePayload.ai_description = zombie.ai_description;
             keeper.ai_description = zombie.ai_description;
+          }
+          if (!keeper.open_in_browser && zombie.open_in_browser) {
+            mergePayload.open_in_browser = zombie.open_in_browser;
+            keeper.open_in_browser = zombie.open_in_browser;
           }
           if (Object.keys(mergePayload).length > 0) {
             await this.db

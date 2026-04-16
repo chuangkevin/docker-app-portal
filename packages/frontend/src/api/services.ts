@@ -20,6 +20,7 @@ export interface Service {
   domain: string | null
   is_pinned: boolean
   is_hidden?: boolean
+  open_in_browser?: boolean
 }
 
 export async function getServices(): Promise<Service[]> {
@@ -42,7 +43,11 @@ export async function unpinService(id: number): Promise<void> {
 
 export async function updateService(
   id: number,
-  payload: { custom_description?: string | null; display_name?: string | null }
+  payload: {
+    custom_description?: string | null
+    display_name?: string | null
+    open_in_browser?: 0 | 1
+  }
 ): Promise<void> {
   await apiClient.patch(`/services/${id}`, payload)
 }

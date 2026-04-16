@@ -24,7 +24,12 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
 
   const handleOpen = () => {
     if (service.domain) {
-      openApp(service.display_name || service.name, `https://${service.domain}`)
+      const url = `https://${service.domain}`
+      if (service.open_in_browser) {
+        window.open(url, '_blank', 'noopener,noreferrer')
+        return
+      }
+      openApp(service.display_name || service.name, url)
     }
   }
 
@@ -106,7 +111,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
         disabled={!service.domain}
         className="mt-auto w-full py-2 rounded-lg text-sm font-medium transition disabled:opacity-40 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-500 text-white"
       >
-        開啟
+        {service.open_in_browser ? '外部開啟' : '開啟'}
       </button>
     </div>
   )

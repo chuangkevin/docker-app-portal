@@ -9,6 +9,7 @@ import type { CaddyfileService } from '../services/caddyfile';
 const updateServiceSchema = z.object({
   custom_description: z.string().nullable().optional(),
   display_name: z.string().nullable().optional(),
+  open_in_browser: z.union([z.literal(0), z.literal(1)]).optional(),
 });
 
 function scoreServiceRecord(service: {
@@ -16,6 +17,7 @@ function scoreServiceRecord(service: {
   display_name: string | null;
   custom_description: string | null;
   ai_description: string | null;
+  open_in_browser: number;
 }): number {
   return (service.status === 'online' ? 10 : 0)
     + (service.display_name ? 4 : 0)
@@ -28,6 +30,7 @@ function mergeDomainDuplicate<T extends {
   display_name: string | null;
   custom_description: string | null;
   ai_description: string | null;
+  open_in_browser: number;
 }>(existing: T, incoming: T): T {
   const existingScore = scoreServiceRecord(existing);
   const incomingScore = scoreServiceRecord(incoming);
@@ -42,6 +45,9 @@ function mergeDomainDuplicate<T extends {
   }
   if (!winner.ai_description && loser.ai_description) {
     winner.ai_description = loser.ai_description;
+  }
+  if (!winner.open_in_browser && loser.open_in_browser) {
+    winner.open_in_browser = loser.open_in_browser;
   }
 
   return winner;
@@ -148,6 +154,7 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: Caddy
         custom_description: s.custom_description,
         domain: s.domain,
         is_pinned: pinnedServiceIds.has(s.id),
+        open_in_browser: s.open_in_browser === 1,
       }));
 
       return reply.send(result);
@@ -189,6 +196,7 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: Caddy
           last_seen_at: s.last_seen_at,
           domain,
           is_hidden: hiddenServiceIds.has(s.id),
+          open_in_browser: s.open_in_browser === 1,
         };
       });
 
@@ -353,12 +361,19 @@ const servicesRoute: FastifyPluginAsync<{ db: DrizzleDb; caddyfileService: Caddy
         return reply.status(404).send({ error: 'Not Found', message: 'Service not found' });
       }
 
-      const updatePayload: { custom_description?: string | null; display_name?: string | null } = {};
+      const updatePayload: {
+        custom_description?: string | null;
+        display_name?: string | null;
+        open_in_browser?: number;
+      } = {};
       if (body.custom_description !== undefined) {
         updatePayload.custom_description = body.custom_description;
       }
       if (body.display_name !== undefined) {
         updatePayload.display_name = body.display_name;
+      }
+      if (body.open_in_browser !== undefined) {
+        updatePayload.open_in_browser = body.open_in_browser;
       }
       if (Object.keys(updatePayload).length > 0) {
         await db
