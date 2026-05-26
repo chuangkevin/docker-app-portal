@@ -3,6 +3,8 @@ import { eq } from 'drizzle-orm';
 import type { DrizzleDb } from '../db/index';
 import { services, type Service } from '../db/schema';
 import * as geminiKeys from './geminiKeys';
+import { getOpenCodeServers, getOpenCodeModel } from './opencode-settings';
+import { callOpenCodeText } from './opencode-client';
 
 export class GeminiService {
   private db: DrizzleDb;
@@ -34,13 +36,32 @@ export class GeminiService {
   }
 
   async generateDescription(service: Service): Promise<void> {
+    const prompt = `你是一個 Docker 服務分析師。根據以下容器資訊，用繁體中文寫一段 2-3 句的服務介紹，說明這個服務的用途。容器名稱：${service.name}，映像：${service.image}，開放端口：${service.ports}，標籤：${JSON.stringify(service.labels)}`;
+
+    // Try OpenCode first
+    const servers = await getOpenCodeServers(this.db);
+    if (servers.length > 0) {
+      const model = await getOpenCodeModel(this.db);
+      try {
+        const text = await callOpenCodeText(servers[0], model, prompt);
+        if (text) {
+          await this.db
+            .update(services)
+            .set({ ai_description: text })
+            .where(eq(services.id, service.id));
+          return;
+        }
+      } catch (err) {
+        console.warn('[OpenCode] generateDescription failed, falling back to Gemini:', err instanceof Error ? err.message : String(err));
+      }
+    }
+
+    // Gemini fallback
     const hasKeys = geminiKeys.loadKeys();
     if (hasKeys.length === 0) {
       // No API key configured, skip silently
       return;
     }
-
-    const prompt = `你是一個 Docker 服務分析師。根據以下容器資訊，用繁體中文寫一段 2-3 句的服務介紹，說明這個服務的用途。容器名稱：${service.name}，映像：${service.image}，開放端口：${service.ports}，標籤：${JSON.stringify(service.labels)}`;
 
     await this.withRetry(async (apiKey) => {
       const genAI = new GoogleGenerativeAI(apiKey);
