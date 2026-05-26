@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   useQuery,
   useMutation,
@@ -9,14 +9,31 @@ import {
   addApiKeys,
   deleteApiKey,
   getTokenUsage,
+  getOpenCodeSettings,
+  saveOpenCodeSettings,
+  clearOpenCodeSettings,
+  getOpenCodeModels,
 } from '../../api/admin'
-import type { ApiKeyInfo } from '../../api/admin'
+import type { ApiKeyInfo, OpenCodeModelGroup } from '../../api/admin'
+
+const OC_SOURCE_LABEL: Record<string, string> = {
+  db: '設定',
+  env: '環境變數',
+  none: '未設定',
+  default: '預設',
+}
 
 export default function SystemTab() {
   const queryClient = useQueryClient()
   const [keysInput, setKeysInput] = useState('')
   const [keySearch, setKeySearch] = useState('')
   const [msg, setMsg] = useState<{ text: string; type: 'ok' | 'err' } | null>(null)
+
+  // OpenCode state
+  const [ocServersInput, setOcServersInput] = useState('')
+  const [ocModelSel, setOcModelSel] = useState('')
+  const [ocModelSearch, setOcModelSearch] = useState('')
+  const [ocMsg, setOcMsg] = useState<{ text: string; type: 'ok' | 'err' } | null>(null)
 
   const { data: apiKeys, isLoading: keysLoading } = useQuery({
     queryKey: ['api-keys'],
@@ -27,6 +44,26 @@ export default function SystemTab() {
     queryKey: ['token-usage'],
     queryFn: getTokenUsage,
   })
+
+  const { data: ocSettings } = useQuery({
+    queryKey: ['opencode-settings'],
+    queryFn: getOpenCodeSettings,
+  })
+
+  const { data: ocModels, refetch: refetchModels } = useQuery({
+    queryKey: ['opencode-models'],
+    queryFn: getOpenCodeModels,
+    enabled: false,
+  })
+
+  useEffect(() => {
+    if (ocSettings) {
+      setOcServersInput(ocSettings.servers)
+      if (ocSettings.text_model_source === 'db') {
+        setOcModelSel(ocSettings.text_model)
+      }
+    }
+  }, [ocSettings])
 
   const addMutation = useMutation({
     mutationFn: (keys: string) => addApiKeys(keys),
@@ -50,6 +87,34 @@ export default function SystemTab() {
     },
   })
 
+  const ocSaveMutation = useMutation({
+    mutationFn: () => saveOpenCodeSettings(ocServersInput, ocModelSel || ''),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opencode-settings'] })
+      setOcMsg({ text: 'OpenCode 設定已儲存', type: 'ok' })
+      setTimeout(() => setOcMsg(null), 3000)
+    },
+    onError: () => {
+      setOcMsg({ text: '儲存失敗', type: 'err' })
+      setTimeout(() => setOcMsg(null), 3000)
+    },
+  })
+
+  const ocClearMutation = useMutation({
+    mutationFn: clearOpenCodeSettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opencode-settings'] })
+      setOcServersInput('')
+      setOcModelSel('')
+      setOcMsg({ text: '已清除 DB 設定，回到環境變數', type: 'ok' })
+      setTimeout(() => setOcMsg(null), 3000)
+    },
+    onError: () => {
+      setOcMsg({ text: '清除失敗', type: 'err' })
+      setTimeout(() => setOcMsg(null), 3000)
+    },
+  })
+
   const handleAdd = () => {
     if (!keysInput.trim()) return
     addMutation.mutate(keysInput)
@@ -63,6 +128,20 @@ export default function SystemTab() {
       k.suffix.toLowerCase().includes(term)
     )
   }, [apiKeys, keySearch])
+
+  const filteredOcGroups = useMemo(() => {
+    if (!ocModels?.groups) return []
+    const q = ocModelSearch.toLowerCase().trim()
+    if (!q) return ocModels.groups
+    return ocModels.groups
+      .map((g: OpenCodeModelGroup) => ({
+        ...g,
+        models: g.models.filter(
+          (m) => m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q),
+        ),
+      }))
+      .filter((g) => g.models.length > 0)
+  }, [ocModels, ocModelSearch])
 
   const formatTokens = (n: number) => {
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -172,6 +251,110 @@ export default function SystemTab() {
           </div>
         </section>
       )}
+
+      {/* OpenCode AI Settings */}
+      <section className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+        <h2 className="text-white font-semibold text-lg mb-4">OpenCode AI 設定</h2>
+
+        {/* Current status */}
+        {ocSettings && (
+          <div className="grid grid-cols-[5rem_1fr] gap-y-1 mb-4 text-sm">
+            <span className="text-slate-500">伺服器</span>
+            <span className="text-slate-300 font-mono text-xs truncate">
+              {ocSettings.servers.split('\n')[0] || '—'}
+              {ocSettings.servers.split('\n').filter((s) => s.trim()).length > 1 &&
+                ` +${ocSettings.servers.split('\n').filter((s) => s.trim()).length - 1}`}
+              <span className="text-slate-600 ml-1">[{OC_SOURCE_LABEL[ocSettings.servers_source]}]</span>
+            </span>
+            <span className="text-slate-500">文字模型</span>
+            <span className="text-slate-300 font-mono text-xs truncate">
+              {ocSettings.text_model}
+              <span className="text-slate-600 ml-1">[{OC_SOURCE_LABEL[ocSettings.text_model_source]}]</span>
+            </span>
+          </div>
+        )}
+
+        {/* Servers textarea */}
+        <label className="block text-xs text-slate-400 mb-1">OPENCODE 伺服器（一行一個 URL）</label>
+        <textarea
+          value={ocServersInput}
+          onChange={(e) => setOcServersInput(e.target.value)}
+          rows={3}
+          placeholder="http://opencode-server:4096"
+          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition text-sm font-mono resize-y mb-4"
+        />
+
+        {/* Model search + refresh */}
+        <div className="flex items-center gap-2 mb-2">
+          <label className="text-xs text-slate-400 shrink-0">搜尋模型</label>
+          <input
+            type="text"
+            value={ocModelSearch}
+            onChange={(e) => setOcModelSearch(e.target.value)}
+            placeholder="gpt / gemini / ..."
+            className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => void refetchModels()}
+            className="px-3 py-1.5 text-xs rounded-lg border border-slate-600 bg-slate-700 hover:bg-slate-600 text-slate-300 transition whitespace-nowrap"
+          >
+            重新整理模型
+          </button>
+        </div>
+
+        {/* Model select */}
+        <select
+          value={ocModelSel}
+          onChange={(e) => setOcModelSel(e.target.value)}
+          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 transition text-sm mb-3"
+        >
+          <option value="">
+            — 使用預設（{ocSettings?.text_model || 'opencode/deepseek-v4-flash-free'}）—
+          </option>
+          {filteredOcGroups.map((g) => (
+            <optgroup key={g.provider} label={`${g.name}${g.authed ? '' : ' (需授權)'}`}>
+              {g.models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}{m.free ? ' [free]' : ''}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+
+        {/* Models fetch error */}
+        {ocModels && ocModels.groups.length === 0 && ocServersInput.trim() && (
+          <p className="text-yellow-400 text-xs mb-3">
+            All {ocServersInput.split('\n').filter((s) => s.trim()).length} OpenCode server(s) failed or returned no models
+          </p>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={() => ocSaveMutation.mutate()}
+            disabled={ocSaveMutation.isPending || ocClearMutation.isPending}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {ocSaveMutation.isPending ? '儲存中...' : '儲存 OpenCode 設定'}
+          </button>
+          <button
+            type="button"
+            onClick={() => ocClearMutation.mutate()}
+            disabled={ocSaveMutation.isPending || ocClearMutation.isPending || ocSettings?.servers_source !== 'db'}
+            className="px-4 py-2 rounded-lg text-sm font-medium border border-slate-600 hover:bg-slate-700 text-slate-300 transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {ocClearMutation.isPending ? '清除中...' : '清除 DB 設定'}
+          </button>
+          {ocMsg && (
+            <span className={`text-sm ${ocMsg.type === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
+              {ocMsg.text}
+            </span>
+          )}
+        </div>
+      </section>
     </div>
   )
 }

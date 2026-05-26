@@ -82,3 +82,49 @@ export async function removeDomain(subdomain: string): Promise<void> {
 export async function updateDomain(subdomain: string, port: number): Promise<void> {
   await apiClient.put(`/domains/${subdomain}`, { port })
 }
+
+// ==================== OpenCode Settings ====================
+
+export interface OpenCodeSettings {
+  servers: string
+  servers_source: 'db' | 'env' | 'none'
+  text_model: string
+  text_model_source: 'db' | 'env' | 'default'
+}
+
+export interface OpenCodeModelGroup {
+  provider: string
+  name: string
+  authed: boolean
+  models: Array<{ id: string; name: string; free: boolean }>
+}
+
+export interface OpenCodeModelsResponse {
+  groups: OpenCodeModelGroup[]
+  server: { id: string; label: string; base_url: string } | null
+}
+
+export async function getOpenCodeSettings(): Promise<OpenCodeSettings> {
+  const { data } = await apiClient.get<OpenCodeSettings>('/admin/settings/opencode')
+  return data
+}
+
+export async function saveOpenCodeSettings(
+  servers: string,
+  text_model: string,
+): Promise<OpenCodeSettings & { ok: boolean }> {
+  const { data } = await apiClient.post<OpenCodeSettings & { ok: boolean }>(
+    '/admin/settings/opencode',
+    { servers, text_model },
+  )
+  return data
+}
+
+export async function clearOpenCodeSettings(): Promise<void> {
+  await apiClient.delete('/admin/settings/opencode')
+}
+
+export async function getOpenCodeModels(): Promise<OpenCodeModelsResponse> {
+  const { data } = await apiClient.get<OpenCodeModelsResponse>('/admin/settings/opencode/models')
+  return data
+}
