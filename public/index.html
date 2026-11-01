@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0b0c0e" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f2ee" media="(prefers-color-scheme: light)">
+  <title>Sisihome 服務入口</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/fonts.css">
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/app.js"></script>
+  <script defer src="/vendor/alpine/cdn.min.js"></script>
+</head>
+<body x-data="portal" @keydown.window="onKey($event)" :class="{ ready, searching: q.trim() !== '' }">
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="hero">
+    <div class="hero-top">
+      <a class="brand" href="/" aria-label="Sisihome 服務入口">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="5"/><circle cx="16" cy="16" r="11" fill="none" stroke-width="1.5"/><circle cx="16" cy="16" r="15" fill="none" stroke-width="1" opacity=".45"/></svg>
+        <span>Sisihome</span>
+      </a>
+      <div class="meta">
+        <span class="live" :class="{ scanning: data.scanning }">
+          <i></i>
+          <span x-text="data.scanning ? `正在掃描 ${data.scanning}` : `${ago(data.generatedAt)}更新`"></span>
+        </span>
+        <span class="ver" x-text="data.version ? `v${data.version}` : ''"></span>
+      </div>
+    </div>
+
+    <div class="intro-wrap"><div class="intro">
+      <h1 class="title">
+        <span class="line"><span>每一個服務，</span></span>
+        <span class="line"><span>一個入口。</span></span>
+      </h1>
+      <dl class="stats">
+        <div><dt>機器</dt><dd x-text="stats.machines">–</dd></div>
+        <div><dt>服務</dt><dd x-text="stats.services">–</dd></div>
+        <div><dt>在線</dt><dd class="ok" x-text="stats.online">–</dd></div>
+        <div><dt>離線</dt><dd :class="{ bad: stats.offline }" x-text="stats.offline">–</dd></div>
+      </dl>
+    </div></div>
+
+    <div class="search" :class="{ focused: searchFocused }">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+      <input x-ref="search" type="search" inputmode="search" enterkeyhint="go" autocomplete="off" spellcheck="false"
+             placeholder="搜尋服務、網域、機器或 port"
+             x-model.debounce.80ms="q" @focus="searchFocused = true" @blur="searchFocused = false"
+             @keydown.enter.prevent="openFirst()" @keydown.escape="q = ''; $refs.search.blur()" aria-label="搜尋服務">
+      <kbd class="hint" x-show="!q">/</kbd>
+      <button class="clear" x-show="q" @click="q = ''; $refs.search.focus()" aria-label="清除搜尋">清除</button>
+    </div>
+
+    <div class="toolbar">
+      <div class="filters" role="tablist" aria-label="篩選">
+        <button role="tab" :aria-selected="filter === 'all'" @click="filter = 'all'">全部</button>
+        <button role="tab" :aria-selected="filter === 'online'" @click="filter = 'online'">在線</button>
+        <button role="tab" :aria-selected="filter === 'offline'" @click="filter = 'offline'">離線</button>
+        <button role="tab" :aria-selected="filter === 'domain'" @click="filter = 'domain'">有網域</button>
+      </div>
+      <button class="ghost" @click="showHidden = !showHidden" x-show="stats.hidden">
+        <span x-text="showHidden ? '收起已隱藏' : `顯示已隱藏（${stats.hidden}）`"></span>
+      </button>
+    </div>
+    <nav class="jump" aria-label="跳到機器" x-show="loaded">
+      <template x-for="(g, gi) in groups" :key="'j' + g.id">
+        <a :href="'#m-' + g.id" @click.prevent="jump(g.id)" :class="g.status">
+          <i></i><span x-text="g.name"></span><b x-text="g.list.length"></b>
+        </a>
+      </template>
+    </nav>
+  </header>
+
+  <main>
+    <template x-if="data.errors && data.errors.length">
+      <div class="notice" role="status">
+        <template x-for="e in data.errors" :key="e"><p x-text="e"></p></template>
+      </div>
+    </template>
+
+    <template x-if="!loaded">
+      <div class="skeleton" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    </template>
+
+    <template x-if="pinnedList.length">
+      <section class="group pinned" aria-labelledby="g-pinned">
+        <header class="group-head">
+          <span class="idx">★</span>
+          <h2 id="g-pinned">已釘選</h2>
+          <span class="sub">只存在這個瀏覽器</span>
+        </header>
+        <ul class="grid">
+          <template x-for="(s, i) in pinnedList" :key="'p' + s.key">
+            <li x-html="tile(s, i)"></li>
+          </template>
+        </ul>
+      </section>
+    </template>
+
+    <template x-for="(g, gi) in groups" :key="g.id">
+      <section class="group" :id="'m-' + g.id" :style="`--gi:${gi}`" :aria-labelledby="'g-' + g.id">
+        <header class="group-head">
+          <span class="idx" x-text="String(gi + 1).padStart(2, '0')"></span>
+          <h2 :id="'g-' + g.id" x-text="g.name"></h2>
+          <span class="state" :class="g.status" x-text="machineState(g)"></span>
+          <span class="sub mono" x-text="g.ip"></span>
+          <span class="count" x-text="`${g.list.length} 個服務`"></span>
+        </header>
+        <template x-if="g.list.length">
+          <ul class="grid">
+            <template x-for="(s, i) in g.list" :key="s.key">
+              <li x-html="tile(s, i)"></li>
+            </template>
+          </ul>
+        </template>
+        <template x-if="!g.list.length">
+          <p class="empty" x-text="q ? '沒有符合的服務' : (g.status === 'up' ? '還沒找到網頁服務，完整掃描每 3 小時一次' : '機器離線，連不到')"></p>
+        </template>
+      </section>
+    </template>
+
+    <template x-if="loaded && q && !groups.length && !pinnedList.length">
+      <div class="nothing">
+        <p class="big">找不到「<span x-text="q"></span>」</p>
+        <p>試試網域、port、機器名稱，或按 <kbd>Esc</kbd> 清除。</p>
+      </div>
+    </template>
+  </main>
+
+  <footer class="foot">
+    <p>
+      服務會自動出現：Caddy 有設網域就用網域，沒有就用 IP:port。
+      <span x-show="data.lastFullScan" x-text="`上次完整掃描：${ago(data.lastFullScan)}`"></span>
+    </p>
+    <p class="mono" x-text="data.version ? `docker-app-portal v${data.version}` : ''"></p>
+  </footer>
+
+  <div class="toast" x-show="toast" x-transition.opacity x-text="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

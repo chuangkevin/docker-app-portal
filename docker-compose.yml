@@ -1,44 +1,20 @@
-version: '3.8'
-
+# nas-918：/volume1/docker/portal/  →  sudo docker compose up -d --build
 services:
-  backend:
-    build:
-      context: ./packages/backend
-      dockerfile: Dockerfile
+  portal:
+    build: .
+    image: docker-app-portal:2
+    container_name: portal
+    restart: unless-stopped
+    mem_limit: 256m
     ports:
-      - "3000:3000"
+      - 100.96.225.31:1123:3000
     environment:
-      - TZ=Asia/Taipei
-      - NODE_ENV=development
-      - JWT_SECRET=docker-app-portal-jwt-secret
-      - DATABASE_PATH=/data/app.db
-      - PORT=3000
-      - CADDYFILE_PATH=/app/caddyfile/Caddyfile
-      - CADDY_CONTAINER_NAME=caddy
+      DATABASE_PATH: /data/portal.db
+      BESZEL_DB: /beszel/data.db
+      CADDY_CONFIG_URL: https://portal.sisihome.org/__caddy/servers
+      CADDY_HOST_IP: 100.127.82.47
+      HOST_ALIASES: nb-l390.bunny-salmon.ts.net=100.79.199.43
     volumes:
-      - sqlite_data:/data
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /home/kevin/DockerCompose/caddy:/app/caddyfile:ro
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  frontend:
-    build:
-      context: ./packages/frontend
-      dockerfile: Dockerfile
-    ports:
-      - "80:80"
-    environment:
-      - TZ=Asia/Taipei
-    depends_on:
-      backend:
-        condition: service_healthy
-    restart: unless-stopped
-
-volumes:
-  sqlite_data:
+      - ./data:/data
+      # Beszel 的資料庫：機器清單與容器（程式只用唯讀方式開）
+      - /volume1/docker/monitor/beszel_data:/beszel

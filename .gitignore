@@ -1,8 +1,8 @@
 node_modules/
 dist/
+data/
 *.db
 *.db-wal
 *.db-shm
 .env
-packages/frontend/dist/
 .claude/

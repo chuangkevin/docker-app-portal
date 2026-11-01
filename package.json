@@ -1,17 +1,24 @@
 {
   "name": "docker-app-portal",
+  "version": "2.0.0",
   "private": true,
-  "workspaces": ["packages/*"],
+  "description": "服務入口：自動列出 homelab 所有機器上的網頁服務，有網域就用網域",
+  "type": "module",
   "scripts": {
-    "dev:backend": "npm --workspace packages/backend run dev",
-    "dev:frontend": "npm --workspace packages/frontend run dev",
-    "build": "npm --workspace packages/frontend run build && npm --workspace packages/backend run build",
-    "test:backend": "npm --workspace packages/backend run test",
-    "lint": "npm run lint --workspaces --if-present",
-    "format": "prettier --write \"packages/**/*.{ts,tsx,js,json,css,md}\""
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "tsc -p tsconfig.json && node dist/server.js",
+    "test": "tsc -p tsconfig.json && node --test dist/*.test.js"
+  },
+  "dependencies": {
+    "alpinejs": "3.14.9",
+    "better-sqlite3": "11.10.0",
+    "fastify": "5.4.0",
+    "@fastify/static": "8.2.0"
   },
   "devDependencies": {
-    "eslint-config-prettier": "^9.1.0",
-    "prettier": "^3.2.5"
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "22.15.30",
+    "typescript": "5.8.3"
   }
 }
