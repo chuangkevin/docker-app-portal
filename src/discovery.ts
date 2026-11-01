@@ -6,7 +6,10 @@ import {
   probeDomain,
   probeHttp,
   readBeszel,
-  readCaddy,
+  readCloudflare,
+  readDomains,
+  EXTERNAL_HOSTS,
+  type DnsRecord,
   scanPorts,
 } from './sources.js';
 import type { Store } from './store.js';
@@ -25,6 +28,8 @@ export interface Config {
   scanTimeoutMs: number;
   keepDays: number;
   magicDns: string;
+  cfToken: string;
+  cfZone: string;
 }
 
 export interface ServiceView {
@@ -39,6 +44,7 @@ export interface ServiceView {
   online: boolean;
   hidden: boolean;
   firstSeen: number;
+  alsoOn?: string[];
 }
 
 export interface MachineView {
@@ -73,8 +79,16 @@ export class Discovery {
     } catch (e) {
       errors.push(`機器清單（Beszel）讀不到：${(e as Error).message}`);
     }
+    let records: DnsRecord[] | null = null;
+    if (this.cfg.cfToken) {
+      try {
+        records = await readCloudflare(this.cfg.cfToken, this.cfg.cfZone);
+      } catch (e) {
+        errors.push(`DNS 記錄（Cloudflare）讀不到：${(e as Error).message}`);
+      }
+    }
     try {
-      this.routes = await readCaddy(this.cfg.caddyUrl, this.cfg.domainSuffix, this.cfg.caddyHostIp, this.cfg.aliases);
+      this.routes = await readDomains(this.cfg.caddyUrl, this.cfg.domainSuffix, this.cfg.caddyHostIp, this.cfg.aliases, records);
     } catch (e) {
       errors.push(`網域設定（Caddy）讀不到：${(e as Error).message}`);
     }
@@ -88,8 +102,8 @@ export class Discovery {
     resolver.setServers([this.cfg.magicDns]);
     for (const r of this.routes) {
       if (known.has(r.ip) || this.names.has(r.ip)) continue;
-      if (!r.ip.startsWith('100.')) {
-        this.names.set(r.ip, '外部');
+      if (r.ip in EXTERNAL_HOSTS || !r.ip.startsWith('100.')) {
+        this.names.set(r.ip, EXTERNAL_HOSTS[r.ip] ?? '外部');
         continue;
       }
       try {
@@ -104,7 +118,7 @@ export class Discovery {
   private async probeAndRecord(ip: string, port: number) {
     const key = `${ip}:${port}`;
     const r = await probeHttp(ip, port, 4000);
-    if (r.ok) this.store.upsertSeen({ key, ip, port, scheme: r.scheme, status: r.status, title: r.title }, Date.now());
+    if (r.ok) this.store.upsertSeen({ key, ip, port, scheme: r.scheme, status: r.status, title: r.title, server: r.server }, Date.now());
     else this.store.markOffline(key);
   }
 
@@ -117,7 +131,7 @@ export class Discovery {
       const ip = ipOf.get(c.machineId);
       if (ip) for (const p of c.ports) if (!this.cfg.skipPorts.has(p)) targets.set(`${ip}:${p}`, [ip, p]);
     }
-    for (const r of this.routes) targets.set(`${r.ip}:${r.port}`, [r.ip, r.port]);
+    for (const r of this.routes) if (!(r.ip in EXTERNAL_HOSTS)) targets.set(`${r.ip}:${r.port}`, [r.ip, r.port]);
 
     const list = [...targets.values()];
     await runLimited(list, 16, ([ip, port]) => this.probeAndRecord(ip, port));
@@ -168,6 +182,11 @@ export class Discovery {
     })();
   }
 
+  private containerAt(ip: string, port: number) {
+    const m = this.machines.find((x) => x.ip === ip);
+    return m ? (this.containers.find((c) => c.machineId === m.id && c.ports.includes(port))?.name ?? null) : null;
+  }
+
   overview() {
     const hidden = this.store.hiddenKeys();
     const routeByKey = new Map(this.routes.map((r) => [`${r.ip}:${r.port}`, r]));
@@ -180,7 +199,7 @@ export class Discovery {
       let g = groups.get(ip);
       if (!g) {
         const alias = [...this.cfg.aliases].find(([, v]) => v === ip)?.[0].split('.')[0];
-        g = { id: ip, name: alias ?? this.names.get(ip) ?? ip, ip, status: 'unknown', registered: false, services: [] };
+        g = { id: ip, name: alias ?? this.names.get(ip) ?? ip, ip, status: ip in EXTERNAL_HOSTS || !ip.startsWith('100.') ? 'external' : 'unknown', registered: false, services: [] };
         groups.set(ip, g);
       }
       return g;
@@ -191,12 +210,12 @@ export class Discovery {
     for (const key of keys) {
       const row = rows.get(key);
       const route = routeByKey.get(key);
+      // 3 萬以上的 port 多半是系統隨機開的（Tailscale peerapi 之類）：沒網域、沒容器、沒標題就不列
+      if (!route && row && row.port >= 32768 && !row.title && !this.containerAt(row.ip, row.port)) continue;
       const ip = row?.ip ?? route!.ip;
       const port = row?.port ?? route!.port;
       const machine = machineByIp.get(ip);
-      const container = machine
-        ? (this.containers.find((c) => c.machineId === machine.id && c.ports.includes(port))?.name ?? null)
-        : null;
+      const container = this.containerAt(ip, port);
       const domains = route?.domains ?? [];
       const ds = domains.map((d) => this.domainState.get(d)).find(Boolean);
       const title = ds?.title || row?.title || '';
@@ -204,7 +223,7 @@ export class Discovery {
       const label = domains[0]?.slice(0, -this.cfg.domainSuffix.length);
       group(ip).services.push({
         key,
-        name: label ?? container ?? (title || `:${port}`),
+        name: label ?? container ?? (title || row?.server || `port ${port}`),
         title,
         url: domains.length ? `https://${domains[0]}` : `${row?.scheme ?? 'http'}://${ip}:${port}`,
         domains,
@@ -216,6 +235,7 @@ export class Discovery {
         firstSeen: row?.first_seen ?? 0,
       });
     }
+    for (const g of groups.values()) g.services = mergeSameService(g.services);
     const machines = [...groups.values()]
       .filter((g) => g.registered || g.services.length)
       .map((g) => ({ ...g, services: g.services.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant')) }))
@@ -228,6 +248,27 @@ export class Discovery {
       machines,
     };
   }
+}
+
+/** 同一台機器上標題一樣、都沒有網域的（例如 DSM 的 5000／5001、80／443），只留 port 最小的那張。 */
+function mergeSameService(list: ServiceView[]): ServiceView[] {
+  const keep = new Map<string, ServiceView>();
+  const out: ServiceView[] = [];
+  for (const s of [...list].sort((a, b) => a.port - b.port)) {
+    if (s.domains.length || !s.title) {
+      out.push(s);
+      continue;
+    }
+    const first = keep.get(s.title);
+    if (!first) {
+      keep.set(s.title, s);
+      out.push(s);
+    } else {
+      first.alsoOn = [...(first.alsoOn ?? []), s.url];
+      first.online ||= s.online;
+    }
+  }
+  return out;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

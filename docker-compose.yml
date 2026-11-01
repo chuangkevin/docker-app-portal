@@ -14,6 +14,9 @@ services:
       CADDY_CONFIG_URL: https://portal.sisihome.org/__caddy/servers
       CADDY_HOST_IP: 100.127.82.47
       HOST_ALIASES: nb-l390.bunny-salmon.ts.net=100.79.199.43
+      # 讀 Cloudflare DNS 記錄（找 Vercel／Workers 上的網域），token 放同目錄 .env，不進 git
+      CF_API_TOKEN: ${CF_API_TOKEN:-}
+      CF_ZONE: sisihome.org
     volumes:
       - ./data:/data
       # Beszel 的資料庫：機器清單與容器（程式只用唯讀方式開）

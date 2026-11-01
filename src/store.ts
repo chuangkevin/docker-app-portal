@@ -8,6 +8,7 @@ export interface ServiceRow {
   scheme: 'http' | 'https';
   status: number;
   title: string;
+  server: string;
   online: number;
   first_seen: number;
   last_seen: number;
@@ -29,14 +30,16 @@ export class Store {
       create table if not exists hidden (key text primary key, hidden_at integer not null);
       create table if not exists meta (k text primary key, v text not null);
     `);
+    const cols = (this.db.prepare('pragma table_info(services)').all() as { name: string }[]).map((c) => c.name);
+    if (!cols.includes('server')) this.db.exec("alter table services add column server text not null default ''");
   }
 
   upsertSeen(r: Omit<ServiceRow, 'first_seen' | 'last_seen' | 'online'>, now: number) {
     this.db
       .prepare(
-        `insert into services(key, ip, port, scheme, status, title, online, first_seen, last_seen)
-         values(@key, @ip, @port, @scheme, @status, @title, 1, @now, @now)
-         on conflict(key) do update set scheme=@scheme, status=@status,
+        `insert into services(key, ip, port, scheme, status, title, server, online, first_seen, last_seen)
+         values(@key, @ip, @port, @scheme, @status, @title, @server, 1, @now, @now)
+         on conflict(key) do update set scheme=@scheme, status=@status, server=@server,
            title=case when @title != '' then @title else title end, online=1, last_seen=@now`,
       )
       .run({ ...r, now });

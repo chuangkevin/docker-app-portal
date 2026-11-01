@@ -110,7 +110,7 @@ document.addEventListener('alpine:init', () => {
       };
     },
     machineState(g) {
-      return { up: '在線', down: '離線', paused: '暫停', pending: '等待中' }[g.status] ?? '未註冊';
+      return { up: '在線', down: '離線', paused: '暫停', pending: '等待中', external: '外部平台' }[g.status] ?? '沒裝監控';
     },
 
     // ---------- 動作 ----------
@@ -186,7 +186,8 @@ document.addEventListener('alpine:init', () => {
     },
     tile(s, i) {
       const pinned = this.pins.has(s.key);
-      const shown = s.domains[0] ?? `${s.ip}:${s.port}`;
+      const extra = (s.alsoOn ?? []).map((u) => `:${new URL(u).port}`).join(' ');
+      const shown = (s.domains[0] ?? `${s.ip}:${s.port}`) + (extra ? `  ${extra}` : '');
       const sub = s.title && s.title !== s.name ? s.title : s.container && s.container !== s.name ? s.container : '';
       const icon = s.domains[0]
         ? `<img src="https://${esc(s.domains[0])}/favicon.ico" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`
@@ -198,7 +199,7 @@ document.addEventListener('alpine:init', () => {
           <div class="body">
             <p class="name">${this.mark(s.name)}</p>
             ${sub ? `<p class="desc">${this.mark(sub)}</p>` : ''}
-            <p class="addr mono"><span class="dot" title="${s.online ? '在線' : '連不到'}"></span>${this.mark(shown)}</p>
+            <p class="addr mono"><span class="dot" title="${s.online ? '在線' : '連不到'}"></span><span>${this.mark(shown)}</span></p>
           </div>
           <div class="acts">
             <button type="button" data-act="pin" data-key="${esc(s.key)}" aria-pressed="${pinned}" title="${pinned ? '取消釘選' : '釘選到最上面（只存在這個瀏覽器）'}" aria-label="${pinned ? '取消釘選' : '釘選'} ${esc(s.name)}">

@@ -106,7 +106,7 @@
           <span class="idx" x-text="String(gi + 1).padStart(2, '0')"></span>
           <h2 :id="'g-' + g.id" x-text="g.name"></h2>
           <span class="state" :class="g.status" x-text="machineState(g)"></span>
-          <span class="sub mono" x-text="g.ip"></span>
+          <span class="sub mono" x-show="g.status !== 'external'" x-text="g.ip"></span>
           <span class="count" x-text="`${g.list.length} 個服務`"></span>
         </header>
         <template x-if="g.list.length">

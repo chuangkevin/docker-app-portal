@@ -1,6 +1,6 @@
 {
   "name": "docker-app-portal",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "服務入口：自動列出 homelab 所有機器上的網頁服務，有網域就用網域",
   "type": "module",

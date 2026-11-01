@@ -26,6 +26,8 @@ const discovery = new Discovery(
     scanTimeoutMs: Number(env('SCAN_TIMEOUT_MS', '600')),
     keepDays: Number(env('KEEP_DAYS', '3')),
     magicDns: env('MAGIC_DNS', '100.100.100.100'),
+    cfToken: env('CF_API_TOKEN', ''),
+    cfZone: env('CF_ZONE', 'sisihome.org'),
   },
   store,
 );
