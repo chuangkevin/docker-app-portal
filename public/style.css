@@ -191,6 +191,48 @@ main,
   color: var(--faint);
 }
 
+/* 「立即掃描」：低調的次要按鈕，貼在 meta 那排右邊 */
+.refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  background: color-mix(in oklch, var(--fg) 6%, transparent);
+  border: 1px solid color-mix(in oklch, var(--fg) 12%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.2s var(--ease), background 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+
+.refresh svg {
+  width: 13px;
+  height: 13px;
+}
+
+.refresh:hover:not(:disabled) {
+  color: var(--fg);
+  background: color-mix(in oklch, var(--fg) 12%, transparent);
+  border-color: color-mix(in oklch, var(--fg) 20%, transparent);
+}
+
+.refresh:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.refresh.busy svg {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .intro-wrap {
   display: grid;
   grid-template-rows: 1fr;

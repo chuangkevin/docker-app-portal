@@ -17,6 +17,12 @@ services:
       # 讀 Cloudflare DNS 記錄（找 Vercel／Workers 上的網域），token 放同目錄 .env，不進 git
       CF_API_TOKEN: ${CF_API_TOKEN:-}
       CF_ZONE: sisihome.org
+      # 2026-11-10：原本 120 秒全網段探測（concurrency 150）在這台太吃 CPU，
+      # 也讓 tailscaled 忙著轉發探測封包。改成每小時一次、併發 40、完整掃描 24 小時一次；
+      # 想立刻更新按頁面上的「立即掃描」，走 POST /api/refresh。
+      QUICK_PROBE_SECONDS: 3600
+      SCAN_CONCURRENCY: 40
+      FULL_SCAN_HOURS: 24
     volumes:
       - ./data:/data
       # Beszel 的資料庫：機器清單與容器（程式只用唯讀方式開）

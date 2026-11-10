@@ -49,6 +49,12 @@ app.register(fastifyStatic, {
 
 app.get('/api/health', async () => ({ ok: true, version }));
 app.get('/api/overview', async () => ({ version, ...discovery.overview() }));
+// 手動刷新（前端按鈕）：立刻跑一次「來源重讀 + 快速探測」，不擋請求
+app.post('/api/refresh', async (_req, reply) => {
+  if (discovery.refreshing) return reply.code(409).send({ error: '掃描進行中，請稍等' });
+  void discovery.refreshNow().catch((e) => console.error('[refresh]', e));
+  return { ok: true, startedAt: Date.now() };
+});
 app.post<{ Body: { key?: unknown; hidden?: unknown } }>('/api/hidden', async (req, reply) => {
   const { key, hidden } = req.body ?? {};
   if (typeof key !== 'string' || !/^[\w.:-]+$/.test(key) || typeof hidden !== 'boolean') {

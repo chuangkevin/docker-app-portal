@@ -38,7 +38,29 @@ document.addEventListener('alpine:init', () => {
     searchFocused: false,
     pins: readPins(),
     toast: '',
+    refreshing: false,
     now: Date.now(),
+
+    /** 「立即掃描」：手動觸發一次來源重讀＋快速探測（自動是每小時一次）。 */
+    async refresh() {
+      if (this.refreshing) return;
+      this.refreshing = true;
+      this.toast = '已開始掃描，20 秒後更新列表';
+      try {
+        const res = await fetch('/api/refresh', { method: 'POST' });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          this.toast = body.error || '掃描失敗';
+        } else {
+          setTimeout(() => this.load(), 8_000);
+          setTimeout(() => this.load(), 20_000);
+        }
+      } catch {
+        this.toast = '掃描請求失敗（連不到後端）';
+      } finally {
+        setTimeout(() => (this.refreshing = false), 10_000);
+      }
+    },
 
     async init() {
       await this.load();

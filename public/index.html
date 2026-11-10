@@ -28,6 +28,11 @@
           <span x-text="data.scanning ? `正在掃描 ${data.scanning}` : `${ago(data.generatedAt)}更新`"></span>
         </span>
         <span class="ver" x-text="data.version ? `v${data.version}` : ''"></span>
+        <button class="refresh" type="button" @click="refresh()" :disabled="refreshing" :class="{ busy: refreshing }"
+          :title="refreshing ? '正在重新掃描' : '立刻重新掃描一次（自動每小時一次）'">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span x-text="refreshing ? '掃描中…' : '立即掃描'"></span>
+        </button>
       </div>
     </div>
 

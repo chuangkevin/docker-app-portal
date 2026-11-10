@@ -62,6 +62,7 @@ export class Discovery {
   routes: DomainRoute[] = [];
   domainState = new Map<string, { online: boolean; title: string }>();
   scanning: string | null = null;
+  refreshing = false;
   names = new Map<string, string>(); // 沒註冊的機器：用 Tailscale MagicDNS 反查名字
   errors: string[] = [];
 
@@ -154,6 +155,22 @@ export class Discovery {
     }
     this.scanning = null;
     this.store.setMeta('lastFullScan', String(Date.now()));
+  }
+
+  /**
+   * 手動刷新：前端「立即掃描」按鈕呼叫。跟自動流程用同一段邏輯，
+   * 已經在跑就回 false（避免兩個掃描疊在一起把機器打爆）。
+   */
+  async refreshNow(): Promise<boolean> {
+    if (this.refreshing) return false;
+    this.refreshing = true;
+    try {
+      await this.refreshSources();
+      await this.quickProbe();
+      return true;
+    } finally {
+      this.refreshing = false;
+    }
   }
 
   start() {
